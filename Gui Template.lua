@@ -1551,9 +1551,18 @@ function GluttonyUI:CreateWindow(options)
             local function GetPanelPosition()
                 local ddAbs = ddBtn.AbsolutePosition
                 local ddSize = ddBtn.AbsoluteSize
-                local inset = GuiService:GetGuiInset()
+                -- Remove the inset correction entirely - AbsolutePosition 
+                -- relative to screenGui usually doesn't need it
                 local relX = ddAbs.X
-                local relY = ddAbs.Y + ddSize.Y + 4 - inset.Y
+                local relY = ddAbs.Y + ddSize.Y + 4
+                
+                -- If dropdown would go below screen, open upward
+                local panelHeight = panel.AbsoluteSize.Y
+                local screenHeight = screenGui.AbsoluteSize.Y
+                if panelHeight > 0 and relY + panelHeight > screenHeight then
+                    relY = ddAbs.Y - panelHeight - 4
+                end
+                
                 return UDim2.new(0, relX, 0, relY)
             end
 
