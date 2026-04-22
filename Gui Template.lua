@@ -1628,11 +1628,11 @@ function GluttonyUI:CreateWindow(options)
 
                     local targetH = BuildOptions()
 
-                    -- Position initially
+                    -- Replace these lines in the click handler:
                     local absPos = ddBtn.AbsolutePosition
                     local absSize = ddBtn.AbsoluteSize
-                    local contentPos = content.AbsolutePosition
-                    
+                    local contentPos = content.AbsolutePosition  -- DELETE this line
+
                     panel.Position = UDim2.new(0, absPos.X, 0, absPos.Y + absSize.Y + 4)
                     panel.Size = UDim2.new(0, 180, 0, 0)
                     panel.Visible = true
@@ -1640,24 +1640,25 @@ function GluttonyUI:CreateWindow(options)
                     Tween(panel, {Size = UDim2.new(0, 180, 0, targetH)}, 0.25, Enum.EasingStyle.Quart)
                     Tween(arrowFrame, {Rotation = 0}, 0.25)
 
-                    -- Keep repositioning while open using Heartbeat
                     local heartbeatConn = nil
                     heartbeatConn = game:GetService("RunService").Heartbeat:Connect(function()
                         if not isOpen or not panel.Visible then
                             if heartbeatConn then heartbeatConn:Disconnect() end
                             return
                         end
-                        local ap = ddBtn.AbsolutePosition
+                        
+                        local ap = ddBtn.AbsolutePosition  -- already in screen space
                         local as = ddBtn.AbsoluteSize
                         local cp = content.AbsolutePosition
+                        local cs = content.AbsoluteSize
                         
-                        -- Check if button is still visible in scroll area
-                        if ap.Y < cp.Y or ap.Y + as.Y > cp.Y + content.AbsoluteSize.Y then
-                            -- Button scrolled out of view, hide panel
+                        -- Hide if button scrolled out of visible content area
+                        if ap.Y + as.Y < cp.Y or ap.Y > cp.Y + cs.Y then
                             panel.Visible = false
                         else
                             panel.Visible = true
-                            panel.Position = UDim2.new(0, ap.X - cp.X, 0, ap.Y - cp.Y + as.Y + 4)
+                            -- Use screen-space coordinates directly (panel is in screenGui)
+                            panel.Position = UDim2.new(0, ap.X, 0, ap.Y + as.Y + 4)
                         end
                     end)
                     AddConnection(heartbeatConn)
