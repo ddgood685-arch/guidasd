@@ -12,6 +12,7 @@ local TweenService     = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
 local HttpService      = game:GetService("HttpService")
 local RunService     = game:GetService("RunService")
+local GuiService = game:GetService("GuiService")
 
 local player    = Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
@@ -1628,37 +1629,46 @@ function GluttonyUI:CreateWindow(options)
 
                     local targetH = BuildOptions()
 
-                    -- Replace these lines in the click handler:
+                    -- Get inset offset (topbar is typically 36px)
+                    local guiInset = game:GetService("GuiService"):GetGuiInset()
+
                     local absPos = ddBtn.AbsolutePosition
                     local absSize = ddBtn.AbsoluteSize
-                    local contentPos = content.AbsolutePosition  -- DELETE this line
 
-                    panel.Position = UDim2.new(0, absPos.X, 0, absPos.Y + absSize.Y + 4)
+                    panel.Position = UDim2.new(0, absPos.X, 0, absPos.Y + absSize.Y + 4 - guiInset.Y)
                     panel.Size = UDim2.new(0, 180, 0, 0)
                     panel.Visible = true
-                    
+
                     Tween(panel, {Size = UDim2.new(0, 180, 0, targetH)}, 0.25, Enum.EasingStyle.Quart)
-                    Tween(arrowFrame, {Rotation = 0}, 0.25)
+                    Tween(arrowFrame, {Rotation = 180}, 0.25)
 
                     local heartbeatConn = nil
-                    heartbeatConn = game:GetService("RunService").Heartbeat:Connect(function()
-                        if not isOpen or not panel.Visible then
+                    heartbeatConn = RunService.RenderStepped:Connect(function()
+                        if not isOpen or not panel or not panel.Parent then
                             if heartbeatConn then heartbeatConn:Disconnect() end
                             return
                         end
-                        
-                        local ap = ddBtn.AbsolutePosition  -- already in screen space
+
+                        local ap = ddBtn.AbsolutePosition
                         local as = ddBtn.AbsoluteSize
                         local cp = content.AbsolutePosition
                         local cs = content.AbsoluteSize
-                        
+                        local inset = game:GetService("GuiService"):GetGuiInset()
+
                         -- Hide if button scrolled out of visible content area
                         if ap.Y + as.Y < cp.Y or ap.Y > cp.Y + cs.Y then
-                            panel.Visible = false
+                            if panel.Visible then
+                                panel.Visible = false
+                            end
                         else
-                            panel.Visible = true
-                            -- Use screen-space coordinates directly (panel is in screenGui)
-                            panel.Position = UDim2.new(0, ap.X, 0, ap.Y + as.Y + 4)
+                            if not panel.Visible then
+                                panel.Visible = true
+                            end
+                            -- Compensate for GUI inset since panel is in screenGui
+                            panel.Position = UDim2.new(
+                                0, ap.X,
+                                0, ap.Y + as.Y + 4 - inset.Y
+                            )
                         end
                     end)
                     AddConnection(heartbeatConn)
