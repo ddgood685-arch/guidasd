@@ -1458,7 +1458,7 @@ function GluttonyUI:CreateWindow(options)
             row.BorderSizePixel = 0
             row.LayoutOrder = order
             row.ZIndex = 6
-            row.ClipsDescendants = false
+            row.ClipsDescendants = false -- Crucial: allow dropdown to show outside the row
             row.Parent = page
             Corner(row, Theme.CornerRadius)
 
@@ -1495,42 +1495,33 @@ function GluttonyUI:CreateWindow(options)
             ddLabel.TextSize = 13
             ddLabel.Font = Theme.FontLight
             ddLabel.TextXAlignment = Enum.TextXAlignment.Left
-            ddLabel.TextTruncate = Enum.TextTruncate.AtEnd
             ddLabel.ZIndex = 9
             ddLabel.Parent = ddBtn
 
-            -- Simple triangle arrow using two angled lines
             local arrowFrame = Instance.new("Frame")
-            arrowFrame.Name = "ArrowFrame"
             arrowFrame.Size = UDim2.new(0, 12, 0, 12)
             arrowFrame.Position = UDim2.new(1, -22, 0.5, -6)
             arrowFrame.BackgroundTransparency = 1
             arrowFrame.ZIndex = 9
             arrowFrame.Parent = ddBtn
 
-            -- Left side of chevron
             local arrowLeft = Instance.new("Frame")
             arrowLeft.Size = UDim2.new(0, 7, 0, 2)
             arrowLeft.Position = UDim2.new(0, 0, 0.5, -1)
             arrowLeft.AnchorPoint = Vector2.new(0, 0.5)
             arrowLeft.BackgroundColor3 = Theme.Accent
-            arrowLeft.BackgroundTransparency = 0.2
             arrowLeft.Rotation = 35
             arrowLeft.BorderSizePixel = 0
-            arrowLeft.ZIndex = 10
             arrowLeft.Parent = arrowFrame
             Corner(arrowLeft, UDim.new(1, 0))
 
-            -- Right side of chevron
             local arrowRight = Instance.new("Frame")
             arrowRight.Size = UDim2.new(0, 7, 0, 2)
             arrowRight.Position = UDim2.new(1, 0, 0.5, -1)
             arrowRight.AnchorPoint = Vector2.new(1, 0.5)
             arrowRight.BackgroundColor3 = Theme.Accent
-            arrowRight.BackgroundTransparency = 0.2
             arrowRight.Rotation = -35
             arrowRight.BorderSizePixel = 0
-            arrowRight.ZIndex = 10
             arrowRight.Parent = arrowFrame
             Corner(arrowRight, UDim.new(1, 0))
 
@@ -1541,36 +1532,28 @@ function GluttonyUI:CreateWindow(options)
             ddClick.ZIndex = 10
             ddClick.Parent = ddBtn
 
+            -- FIX: Parent to 'page' instead of screenGui for perfect scrolling & clipping
             local panel = Instance.new("ScrollingFrame")
             panel.Size = UDim2.new(0, 180, 0, 0)
-            panel.Position = UDim2.new(0, 0, 0, 0) -- will be set dynamically
             panel.BackgroundColor3 = Theme.DropdownBg
             panel.BorderSizePixel = 0
             panel.ClipsDescendants = true
             panel.ScrollBarThickness = 3
             panel.ScrollBarImageColor3 = Theme.Accent
-            panel.CanvasSize = UDim2.new(0, 0, 0, 0)
-            panel.ZIndex = 100
+            panel.ZIndex = 100 
             panel.Visible = false
-            panel.Parent = screenGui
+            panel.Parent = page -- This ensures it scrolls WITH the page perfectly
             Corner(panel, UDim.new(0, 6))
             Stroke(panel, Theme.Accent, 1, 0.6)
 
             local panelLayout = ListLayout(panel, 2)
             Padding(panel, 4, 4, 4, 4)
 
-            -- ✅ FIX: visuals only, no callback here
             ConfigManager:RegisterUpdater(labelText, function(val)
                 if type(val) == "string" then
-                    local valid = false
-                    for _, opt in ipairs(options) do
-                        if opt == val then valid = true; break end
-                    end
-                    if valid then
-                        selected = val
-                        ddLabel.Text = val
-                        ddLabel.TextColor3 = Theme.Text
-                    end
+                    selected = val
+                    ddLabel.Text = val
+                    ddLabel.TextColor3 = Theme.Text
                 end
             end)
 
@@ -1593,12 +1576,6 @@ function GluttonyUI:CreateWindow(options)
                     optBtn.Parent = panel
                     Corner(optBtn, UDim.new(0, 5))
 
-                    AddConnection(optBtn.MouseEnter:Connect(function()
-                        if selected ~= opt then Tween(optBtn, {BackgroundColor3 = Theme.DropdownHover}, 0.1) end
-                    end))
-                    AddConnection(optBtn.MouseLeave:Connect(function()
-                        if selected ~= opt then Tween(optBtn, {BackgroundColor3 = Theme.DropdownBg}, 0.1) end
-                    end))
                     AddConnection(optBtn.MouseButton1Click:Connect(function()
                         selected = opt
                         ConfigManager:Set(labelText, opt)
@@ -1606,9 +1583,9 @@ function GluttonyUI:CreateWindow(options)
                         ddLabel.TextColor3 = Theme.Text
                         isOpen = false
                         activeDropdownPanel = nil
-                        panel.Visible = false
-                        panel.Size = UDim2.new(0, 180, 0, 0)
+                        Tween(panel, {Size = UDim2.new(0, 180, 0, 0)}, 0.2)
                         Tween(arrowFrame, {Rotation = 0}, 0.2)
+                        task.delay(0.2, function() panel.Visible = false end)
                         if callback then task.spawn(callback, opt) end
                     end))
                 end
@@ -1616,62 +1593,36 @@ function GluttonyUI:CreateWindow(options)
                 return math.min(#options * 32 + 10, 160)
             end
 
-            local repositionConn = nil
-
             AddConnection(ddClick.MouseButton1Click:Connect(function()
                 isOpen = not isOpen
                 if isOpen then
-                    if activeDropdownPanel and activeDropdownPanel ~= panel and activeDropdownPanel.Parent then
+                    if activeDropdownPanel and activeDropdownPanel ~= panel then
                         activeDropdownPanel.Visible = false
                         activeDropdownPanel.Size = UDim2.new(0, 180, 0, 0)
                     end
                     activeDropdownPanel = panel
 
                     local targetH = BuildOptions()
-
-                    -- Get inset offset (topbar is typically 36px)
-                    local guiInset = game:GetService("GuiService"):GetGuiInset()
-
-                    local absPos = ddBtn.AbsolutePosition
-                    local absSize = ddBtn.AbsoluteSize
-
-                    panel.Position = UDim2.new(0, absPos.X, 0, absPos.Y + absSize.Y + 4 - guiInset.Y)
-                    panel.Size = UDim2.new(0, 180, 0, 0)
+                    
+                    -- POSITIONING MATH:
+                    -- Since the panel is a child of the ScrollingFrame, we just need to 
+                    -- find the button's position relative to the ScrollingFrame (page).
+                    local relativeX = ddBtn.AbsolutePosition.X - page.AbsolutePosition.X
+                    local relativeY = ddBtn.AbsolutePosition.Y - page.AbsolutePosition.Y + page.CanvasPosition.Y
+                    
+                    panel.Position = UDim2.new(0, relativeX, 0, relativeY + ddBtn.AbsoluteSize.Y + 4)
                     panel.Visible = true
-
-                    Tween(panel, {Size = UDim2.new(0, 180, 0, targetH)}, 0.25, Enum.EasingStyle.Quart)
+                    
+                    Tween(panel, {Size = UDim2.new(0, 180, 0, targetH)}, 0.25)
                     Tween(arrowFrame, {Rotation = 180}, 0.25)
 
-                    local heartbeatConn = nil
-                    heartbeatConn = RunService.RenderStepped:Connect(function()
-                        if not isOpen or not panel or not panel.Parent then
-                            if heartbeatConn then heartbeatConn:Disconnect() end
-                            return
-                        end
-
-                        local ap = ddBtn.AbsolutePosition
-                        local as = ddBtn.AbsoluteSize
-                        local cp = content.AbsolutePosition
-                        local cs = content.AbsoluteSize
-                        local inset = game:GetService("GuiService"):GetGuiInset()
-
-                        -- Hide if button scrolled out of visible content area
-                        if ap.Y + as.Y < cp.Y or ap.Y > cp.Y + cs.Y then
-                            if panel.Visible then
-                                panel.Visible = false
-                            end
-                        else
-                            if not panel.Visible then
-                                panel.Visible = true
-                            end
-                            -- Compensate for GUI inset since panel is in screenGui
-                            panel.Position = UDim2.new(
-                                0, ap.X,
-                                0, ap.Y + as.Y + 4 - inset.Y
-                            )
-                        end
+                    -- Heartbeat to keep sync if the Main Window moves while open
+                    local syncConn; syncConn = RunService.RenderStepped:Connect(function()
+                        if not isOpen or not panel.Visible then syncConn:Disconnect() return end
+                        local curX = ddBtn.AbsolutePosition.X - page.AbsolutePosition.X
+                        local curY = ddBtn.AbsolutePosition.Y - page.AbsolutePosition.Y + page.CanvasPosition.Y
+                        panel.Position = UDim2.new(0, curX, 0, curY + ddBtn.AbsoluteSize.Y + 4)
                     end)
-                    AddConnection(heartbeatConn)
                 else
                     activeDropdownPanel = nil
                     Tween(panel, {Size = UDim2.new(0, 180, 0, 0)}, 0.2)
@@ -1682,10 +1633,7 @@ function GluttonyUI:CreateWindow(options)
 
             SetupHover(row, RowColor(order), accentBar)
 
-            -- ✅ FIX: fires callback ONCE if saved selection exists
-            if selected and callback then
-                task.defer(callback, selected)
-            end
+            if selected and callback then task.defer(callback, selected) end
 
             return {
                 Set = function(_, val)
