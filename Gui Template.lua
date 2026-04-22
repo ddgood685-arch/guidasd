@@ -1599,6 +1599,8 @@ function GluttonyUI:CreateWindow(options)
                 panel.CanvasSize = UDim2.new(0, 0, 0, panelLayout.AbsoluteContentSize.Y + 10)
                 return math.min(#options * 32 + 10, 160)
             end
+-- Inside Tab:AddDropdown function, replace the Click Connection block with this:
+
             AddConnection(ddClick.MouseButton1Click:Connect(function()
                 isOpen = not isOpen
                 if isOpen then
@@ -1611,35 +1613,44 @@ function GluttonyUI:CreateWindow(options)
                     
                     local targetH = BuildOptions()
                     
-                    -- ✅ Increase canvas size temporarily to allow scrolling further down
-                    local currentCanvas = page.CanvasSize.Y.Offset
-                    local extraSpace = targetH + 60 -- Add extra padding
-                    page.CanvasSize = UDim2.new(0, 0, 0, currentCanvas + extraSpace)
-                    
-                    -- Calculate space needed vs available
-                    task.wait() -- Wait for layout to calculate sizes
-                    local btnAbsBottomY = ddBtn.AbsolutePosition.Y + ddBtn.AbsoluteSize.Y
-                    local pageBottomY = page.AbsolutePosition.Y + page.AbsoluteSize.Y
-                    local spaceBelow = pageBottomY - btnAbsBottomY - 10
-                    
-                    -- Scroll the page DOWN to see the full dropdown
-                    if spaceBelow < targetH then
-                        local scrollAmount = targetH - spaceBelow + 20 -- Extra 20px padding
-                        page.CanvasPosition = Vector2.new(0, page.CanvasPosition.Y + scrollAmount)
-                    end
-                    
-                    panel.Visible = true
-                    Tween(panel, {Size = UDim2.new(1, 0, 0, targetH)}, 0.25)
-                    Tween(arrowFrame, {Rotation = 180}, 0.25)
-                    
-                    -- Keep dropdown positioned correctly when scrolling
-                    if runServiceConn then runServiceConn:Disconnect() end
-                    runServiceConn = RunService.RenderStepped:Connect(function()
-                        if not isOpen or not panel or not panel.Parent then
-                            if runServiceConn then runServiceConn:Disconnect() end
-                            return
+                    -- ✅ Calculate space needed vs available AFTER layout settles
+                    task.defer(function()
+                        local btnAbsBottomY = ddBtn.AbsolutePosition.Y + ddBtn.AbsoluteSize.Y
+                        local pageBottomY = page.AbsolutePosition.Y + page.AbsoluteSize.Y
+                        
+                        -- ✅ Increased Buffer: Added 40px padding at bottom to ensure dropdown NEVER clips
+                        local bufferMargin = 40 
+                        local spaceBelow = pageBottomY - btnAbsBottomY - bufferMargin
+                        
+                        -- Scroll the page DOWN (canvas position UP) to create safe space
+                        if spaceBelow < targetH then
+                            local scrollAmount = (targetH - spaceBelow) + bufferMargin
+                            
+                            -- Prevent overscroll beyond canvas limit
+                            local maxScroll = page.CanvasSize.Y - page.AbsoluteWindowSize.Y
+                            local newScroll = page.CanvasPosition.Y + scrollAmount
+                            
+                            if newScroll <= maxScroll then
+                                Tween(page, {CanvasPosition = Vector2.new(0, newScroll)}, 0.25)
+                            else
+                                -- Forcefully jump if needed
+                                page.CanvasPosition = Vector2.new(0, maxScroll)
+                            end
                         end
-                        panel.Position = UDim2.new(1, -196, 1, 4)
+                        
+                        panel.Visible = true
+                        Tween(panel, {Size = UDim2.new(1, 0, 0, targetH)}, 0.25)
+                        Tween(arrowFrame, {Rotation = 180}, 0.25)
+                        
+                        -- ✅ Keep dropdown positioned correctly when scrolling
+                        if runServiceConn then runServiceConn:Disconnect() end
+                        runServiceConn = RunService.Heartbeat:Connect(function()
+                            if not isOpen or not panel or not panel.Parent then
+                                if runServiceConn then runServiceConn:Disconnect() end
+                                return
+                            end
+                            panel.Position = UDim2.new(1, -196, 1, 4)
+                        end)
                     end)
                 else
                     activeDropdownPanel = nil
