@@ -385,35 +385,81 @@ local function CreateLogo(parent)
     container.ZIndex = 12
     container.Parent = parent
 
-    local ring = Instance.new("Frame")
-    ring.Size = UDim2.new(1, 0, 1, 0)
-    ring.BackgroundColor3 = Theme.Accent
-    ring.BackgroundTransparency = 0.6
-    ring.BorderSizePixel = 0
-    ring.ZIndex = 12
-    ring.Parent = container
-    Corner(ring, UDim.new(1, 0))
+    local imageLabel = Instance.new("ImageLabel")
+    imageLabel.Size = UDim2.new(1, 0, 1, 0)
+    imageLabel.BackgroundTransparency = 1
+    imageLabel.ScaleType = Enum.ScaleType.Fit
+    imageLabel.ZIndex = 13
+    imageLabel.Parent = container
+    Corner(imageLabel, UDim.new(1, 0))
 
-    local inner = Instance.new("Frame")
-    inner.Size = UDim2.new(0, 18, 0, 18)
-    inner.AnchorPoint = Vector2.new(0.5, 0.5)
-    inner.Position = UDim2.new(0.5, 0, 0.5, 0)
-    inner.BackgroundColor3 = Theme.Accent
-    inner.BorderSizePixel = 0
-    inner.ZIndex = 13
-    inner.Parent = container
-    Corner(inner, UDim.new(1, 0))
+    -- Try to load custom logo
+    local logoLoaded = false
+    pcall(function()
+        local imageUrl = "https://i.imgur.com/cThW0xR.png"
+        local fileName = "logo_v2.png"
 
-    local glow = Instance.new("Frame")
-    glow.Size = UDim2.new(0, 10, 0, 10)
-    glow.AnchorPoint = Vector2.new(0.5, 0.5)
-    glow.Position = UDim2.new(0.5, 0, 0.5, 0)
-    glow.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
-    glow.BackgroundTransparency = 0.4
-    glow.BorderSizePixel = 0
-    glow.ZIndex = 14
-    glow.Parent = container
-    Corner(glow, UDim.new(1, 0))
+        -- Clear old cached file
+        if isfile and isfile(fileName) then
+            if delfile then delfile(fileName) end
+        end
+
+        -- Download
+        local response = nil
+        if syn and syn.request then
+            response = syn.request({Url = imageUrl, Method = "GET"})
+        elseif http_request then
+            response = http_request({Url = imageUrl, Method = "GET"})
+        elseif request then
+            response = request({Url = imageUrl, Method = "GET"})
+        end
+
+        if response and response.Body and #response.Body > 0 then
+            if writefile then writefile(fileName, response.Body) end
+            if getcustomasset then
+                imageLabel.Image = getcustomasset(fileName)
+                logoLoaded = true
+            elseif getsynasset then
+                imageLabel.Image = getsynasset(fileName)
+                logoLoaded = true
+            end
+        end
+    end)
+
+    -- Fallback: geometric logo if image failed
+    if not logoLoaded then
+        imageLabel:Destroy()
+
+        local ring = Instance.new("Frame")
+        ring.Size = UDim2.new(1, 0, 1, 0)
+        ring.BackgroundColor3 = Theme.Accent
+        ring.BackgroundTransparency = 0.6
+        ring.BorderSizePixel = 0
+        ring.ZIndex = 12
+        ring.Parent = container
+        Corner(ring, UDim.new(1, 0))
+
+        local inner = Instance.new("Frame")
+        inner.Size = UDim2.new(0, 18, 0, 18)
+        inner.AnchorPoint = Vector2.new(0.5, 0.5)
+        inner.Position = UDim2.new(0.5, 0, 0.5, 0)
+        inner.BackgroundColor3 = Theme.Accent
+        inner.BorderSizePixel = 0
+        inner.ZIndex = 13
+        inner.Parent = container
+        Corner(inner, UDim.new(1, 0))
+
+        local glow = Instance.new("Frame")
+        glow.Size = UDim2.new(0, 10, 0, 10)
+        glow.AnchorPoint = Vector2.new(0.5, 0.5)
+        glow.Position = UDim2.new(0.5, 0, 0.5, 0)
+        glow.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
+        glow.BackgroundTransparency = 0.4
+        glow.BorderSizePixel = 0
+        glow.ZIndex = 14
+        glow.Parent = container
+        Corner(glow, UDim.new(1, 0))
+    end
 end
 
 -- ════════════════════════════════════════════════════════════════
