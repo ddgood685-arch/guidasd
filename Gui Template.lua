@@ -751,7 +751,7 @@ function GluttonyUI:CreateWindow(options)
     content.Position = UDim2.new(0, Theme.SidebarWidth + 1, 0, 42)
     content.BackgroundColor3 = Theme.Background
     content.BorderSizePixel = 0
-    content.ClipsDescendants = true
+    content.ClipsDescendants = false
     content.ZIndex = 5
     content.Parent = inner
     Corner(content, Theme.CornerLarge)
@@ -1540,7 +1540,7 @@ function GluttonyUI:CreateWindow(options)
             panel.ScrollBarImageColor3 = Theme.Accent
             panel.ZIndex = 500  -- very high, above everything
             panel.Visible = false
-            panel.Parent = screenGui  -- ✅ parent to screenGui, not content
+            panel.Parent = inner   -- ✅ parent to screenGui, not content
             Corner(panel, UDim.new(0, 6))
             Stroke(panel, Theme.Accent, 1, 0.6)
 
@@ -1551,16 +1551,10 @@ function GluttonyUI:CreateWindow(options)
             local function GetPanelPosition()
                 local ddAbs = ddBtn.AbsolutePosition
                 local ddSize = ddBtn.AbsoluteSize
-                -- Remove the inset correction entirely - AbsolutePosition 
-                -- relative to screenGui usually doesn't need it
-                local relX = ddAbs.X
-                local relY = ddAbs.Y + ddSize.Y + 4
-                
-                -- If dropdown would go below screen, open upward
-                local panelHeight = panel.AbsoluteSize.Y
-                local screenHeight = screenGui.AbsoluteSize.Y
-
-                
+                local innerAbs = inner.AbsolutePosition
+                -- Position relative to inner frame
+                local relX = ddAbs.X - innerAbs.X
+                local relY = ddAbs.Y - innerAbs.Y + ddSize.Y + 4
                 return UDim2.new(0, relX, 0, relY)
             end
 
