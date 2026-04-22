@@ -2055,21 +2055,24 @@ function GluttonyUI:CreateWindow(options)
         opHitArea.ZIndex = 11
         opHitArea.Parent = opacityTrack
 
+        -- REPLACE WITH THIS:
         local function ApplyOpacity(val)
             local t = 1 - (val / 100)
-            main.BackgroundTransparency = t
-            if titleBar then titleBar.BackgroundTransparency = t end
-            if sidebar then sidebar.BackgroundTransparency = t end
-            if content then content.BackgroundTransparency = t end
-            -- Apply to title cover too
-            local cover = titleBar:FindFirstChild("Frame")
-            if cover then cover.BackgroundTransparency = t end
-            for _, pg in pairs(Window._pages) do
-                for _, child in pairs(pg:GetChildren()) do
-                    if child:IsA("Frame") and not child:FindFirstChild("ToggleCircle") and not child.Name:find("Slider") and not child.Name:find("HoverBar") then
-                        child.BackgroundTransparency = math.max(t, child.BackgroundTransparency)
-                    end
+            if main and main.Parent then
+                main.BackgroundTransparency = t
+            end
+            if titleBar and titleBar.Parent then
+                titleBar.BackgroundTransparency = t
+                -- Cover the bottom corners cover frame
+                if titleCover and titleCover.Parent then
+                    titleCover.BackgroundTransparency = t
                 end
+            end
+            if sidebar and sidebar.Parent then
+                sidebar.BackgroundTransparency = t
+            end
+            if content and content.Parent then
+                content.BackgroundTransparency = t
             end
         end
 
