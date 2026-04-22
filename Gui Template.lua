@@ -1437,7 +1437,8 @@ function GluttonyUI:CreateWindow(options)
         end
 
         -- ── DROPDOWN ─────────────────────────────────────────
-        
+        -- FIX: RegisterUpdater only updates visuals, NOT fires callback
+
         function Tab:AddDropdown(labelText, options, callback)
             local order = NextOrder()
             local isOpen = false
@@ -1456,8 +1457,8 @@ function GluttonyUI:CreateWindow(options)
             row.BackgroundColor3 = RowColor(order)
             row.BorderSizePixel = 0
             row.LayoutOrder = order
-            row.ZIndex = 10
-            row.ClipsDescendants = false -- Allow panel to overflow the row
+            row.ZIndex = 10 -- Higher ZIndex so it overlaps rows below it
+            row.ClipsDescendants = false -- Must be false so the panel can leak out of the row
             row.Parent = page
             Corner(row, Theme.CornerRadius)
 
@@ -1531,34 +1532,21 @@ function GluttonyUI:CreateWindow(options)
             ddClick.ZIndex = 14
             ddClick.Parent = ddBtn
 
-                        -- ── DROPDOWN PANEL ───────────────────────────────────
+            -- FIX: Parented directly to the Button. 
+            -- This makes it move 1:1 with the GUI with ZERO lag.
             local panel = Instance.new("ScrollingFrame")
-            panel.Size = UDim2.new(0, 180, 0, 0)
-            panel.Position = UDim2.new(0, 0, 1, 6)
+            panel.Size = UDim2.new(1, 0, 0, 0)
+            panel.Position = UDim2.new(0, 0, 1, 4)
             panel.BackgroundColor3 = Theme.DropdownBg
             panel.BorderSizePixel = 0
             panel.ClipsDescendants = true
             panel.ScrollBarThickness = 3
             panel.ScrollBarImageColor3 = Theme.Accent
-            panel.ZIndex = 50
+            panel.ZIndex = 50 -- Very high to ensure it draws over other rows
             panel.Visible = false
-            panel.Parent = ddBtn
+            panel.Parent = ddBtn 
             Corner(panel, UDim.new(0, 6))
             Stroke(panel, Theme.Accent, 1, 0.6)
-
-            -- ✅ Only ONE UIListLayout and ONE UIPadding:
-            local panelLayout = Instance.new("UIListLayout")
-            panelLayout.FillDirection = Enum.FillDirection.Vertical
-            panelLayout.SortOrder = Enum.SortOrder.LayoutOrder
-            panelLayout.Padding = UDim.new(0, 2)
-            panelLayout.Parent = panel
-
-            local panelPadding = Instance.new("UIPadding")
-            panelPadding.PaddingTop = UDim.new(0, 4)
-            panelPadding.PaddingBottom = UDim.new(0, 4)
-            panelPadding.PaddingLeft = UDim.new(0, 4)
-            panelPadding.PaddingRight = UDim.new(0, 4)
-            panelPadding.Parent = panel
 
             local panelLayout = ListLayout(panel, 2)
             Padding(panel, 4, 4, 4, 4)
@@ -1577,7 +1565,7 @@ function GluttonyUI:CreateWindow(options)
                 end
                 for i, opt in ipairs(options) do
                     local optBtn = Instance.new("TextButton")
-                    optBtn.Size = UDim2.new(1, -8, 0, 28)  -- account for left+right padding
+                    optBtn.Size = UDim2.new(1, 0, 0, 30)
                     optBtn.BackgroundColor3 = (selected == opt) and Color3.fromRGB(40, 50, 65) or Theme.DropdownBg
                     optBtn.Text = opt
                     optBtn.TextColor3 = (selected == opt) and Theme.Accent or Theme.Text
@@ -1590,16 +1578,6 @@ function GluttonyUI:CreateWindow(options)
                     optBtn.Parent = panel
                     Corner(optBtn, UDim.new(0, 5))
 
-                    -- Hover effect on options
-                    optBtn.MouseEnter:Connect(function()
-                        if selected ~= opt then
-                            optBtn.BackgroundColor3 = Theme.DropdownHover
-                        end
-                    end)
-                    optBtn.MouseLeave:Connect(function()
-                        optBtn.BackgroundColor3 = (selected == opt) and Color3.fromRGB(40, 50, 65) or Theme.DropdownBg
-                    end)
-
                     AddConnection(optBtn.MouseButton1Click:Connect(function()
                         selected = opt
                         ConfigManager:Set(labelText, opt)
@@ -1607,22 +1585,14 @@ function GluttonyUI:CreateWindow(options)
                         ddLabel.TextColor3 = Theme.Text
                         isOpen = false
                         activeDropdownPanel = nil
-                        Tween(panel, {Size = UDim2.new(0, 180, 0, 0)}, 0.2)
+                        Tween(panel, {Size = UDim2.new(1, 0, 0, 0)}, 0.2)
                         Tween(arrowFrame, {Rotation = 0}, 0.2)
                         task.delay(0.2, function() panel.Visible = false end)
                         if callback then task.spawn(callback, opt) end
                     end))
                 end
-
-                -- Correct height: each item is 28px + 2px gap, minus last gap, plus 8px padding
-                local itemH = 28
-                local gapH = 2
-                local padH = 8
-                local totalH = (#options * (itemH + gapH)) - gapH + padH
-                local clampedH = math.min(totalH, 160)
-
-                panel.CanvasSize = UDim2.new(0, 0, 0, totalH)
-                return clampedH
+                panel.CanvasSize = UDim2.new(0, 0, 0, panelLayout.AbsoluteContentSize.Y + 10)
+                return math.min(#options * 32 + 10, 160)
             end
 
             AddConnection(ddClick.MouseButton1Click:Connect(function()
@@ -1630,28 +1600,17 @@ function GluttonyUI:CreateWindow(options)
                 if isOpen then
                     if activeDropdownPanel and activeDropdownPanel ~= panel then
                         activeDropdownPanel.Visible = false
-                        activeDropdownPanel.Size = UDim2.new(0, 180, 0, 0)
+                        activeDropdownPanel.Size = UDim2.new(1, 0, 0, 0)
                     end
                     activeDropdownPanel = panel
-
+                    
                     local targetH = BuildOptions()
                     panel.Visible = true
-                    Tween(panel, {Size = UDim2.new(0, 180, 0, targetH)}, 0.25)
+                    Tween(panel, {Size = UDim2.new(1, 0, 0, targetH)}, 0.25)
                     Tween(arrowFrame, {Rotation = 180}, 0.25)
-
-                    -- ✅ Auto-scroll if needed (NO close tween here)
-                    task.defer(function()
-                        local rowBottom = (row.AbsolutePosition.Y - page.AbsolutePosition.Y)
-                            + page.CanvasPosition.Y + row.AbsoluteSize.Y
-                        local targetScroll = (rowBottom + targetH + 10) - page.AbsoluteWindowSize.Y
-                        if targetScroll > page.CanvasPosition.Y then
-                            Tween(page, {CanvasPosition = Vector2.new(0, targetScroll)}, 0.25)
-                        end
-                    end)
                 else
-                    -- ✅ Close tween is ONLY in the else block:
                     activeDropdownPanel = nil
-                    Tween(panel, {Size = UDim2.new(0, 180, 0, 0)}, 0.2)
+                    Tween(panel, {Size = UDim2.new(1, 0, 0, 0)}, 0.2)
                     Tween(arrowFrame, {Rotation = 0}, 0.2)
                     task.delay(0.2, function() panel.Visible = false end)
                 end
@@ -2062,24 +2021,21 @@ function GluttonyUI:CreateWindow(options)
         opHitArea.ZIndex = 11
         opHitArea.Parent = opacityTrack
 
-        -- REPLACE WITH THIS:
         local function ApplyOpacity(val)
             local t = 1 - (val / 100)
-            if main and main.Parent then
-                main.BackgroundTransparency = t
-            end
-            if titleBar and titleBar.Parent then
-                titleBar.BackgroundTransparency = t
-                -- Cover the bottom corners cover frame
-                if titleCover and titleCover.Parent then
-                    titleCover.BackgroundTransparency = t
+            main.BackgroundTransparency = t
+            if titleBar then titleBar.BackgroundTransparency = t end
+            if sidebar then sidebar.BackgroundTransparency = t end
+            if content then content.BackgroundTransparency = t end
+            -- Apply to title cover too
+            local cover = titleBar:FindFirstChild("Frame")
+            if cover then cover.BackgroundTransparency = t end
+            for _, pg in pairs(Window._pages) do
+                for _, child in pairs(pg:GetChildren()) do
+                    if child:IsA("Frame") and not child:FindFirstChild("ToggleCircle") and not child.Name:find("Slider") and not child.Name:find("HoverBar") then
+                        child.BackgroundTransparency = math.max(t, child.BackgroundTransparency)
+                    end
                 end
-            end
-            if sidebar and sidebar.Parent then
-                sidebar.BackgroundTransparency = t
-            end
-            if content and content.Parent then
-                content.BackgroundTransparency = t
             end
         end
 
