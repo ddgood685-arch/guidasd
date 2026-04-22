@@ -475,50 +475,96 @@ local function CreateTabIcon(parent, iconType)
     container.Parent = parent
 
     if iconType == "circle" then
-        local c = Instance.new("Frame")
-        c.Size = UDim2.new(0, 14, 0, 14)
-        c.AnchorPoint = Vector2.new(0.5, 0.5)
-        c.Position = UDim2.new(0.5, 0, 0.5, 0)
-        c.BackgroundColor3 = Theme.Accent
-        c.BackgroundTransparency = 0.3
-        c.BorderSizePixel = 0
-        c.ZIndex = 10
-        c.Parent = container
-        Corner(c, UDim.new(1, 0))
+        -- Bullseye: outer ring + inner dot
+        local outer = Instance.new("Frame")
+        outer.Size = UDim2.new(0, 16, 0, 16)
+        outer.AnchorPoint = Vector2.new(0.5, 0.5)
+        outer.Position = UDim2.new(0.5, 0, 0.5, 0)
+        outer.BackgroundColor3 = Theme.Accent
+        outer.BackgroundTransparency = 0.6
+        outer.BorderSizePixel = 0
+        outer.ZIndex = 10
+        outer.Parent = container
+        Corner(outer, UDim.new(1, 0))
+
+        local mid = Instance.new("Frame")
+        mid.Size = UDim2.new(0, 10, 0, 10)
+        mid.AnchorPoint = Vector2.new(0.5, 0.5)
+        mid.Position = UDim2.new(0.5, 0, 0.5, 0)
+        mid.BackgroundColor3 = Theme.Accent
+        mid.BackgroundTransparency = 0.3
+        mid.BorderSizePixel = 0
+        mid.ZIndex = 11
+        mid.Parent = container
+        Corner(mid, UDim.new(1, 0))
+
+        local core = Instance.new("Frame")
+        core.Size = UDim2.new(0, 4, 0, 4)
+        core.AnchorPoint = Vector2.new(0.5, 0.5)
+        core.Position = UDim2.new(0.5, 0, 0.5, 0)
+        core.BackgroundColor3 = Theme.Accent
+        core.BorderSizePixel = 0
+        core.ZIndex = 12
+        core.Parent = container
+        Corner(core, UDim.new(1, 0))
 
     elseif iconType == "square" then
-        local s = Instance.new("Frame")
-        s.Size = UDim2.new(0, 12, 0, 12)
-        s.AnchorPoint = Vector2.new(0.5, 0.5)
-        s.Position = UDim2.new(0.5, 0, 0.5, 0)
-        s.BackgroundColor3 = Theme.Accent
-        s.BackgroundTransparency = 0.3
-        s.BorderSizePixel = 0
-        s.ZIndex = 10
-        s.Parent = container
-        Corner(s, UDim.new(0, 3))
+        -- Layered squares (depth effect)
+        local back = Instance.new("Frame")
+        back.Size = UDim2.new(0, 12, 0, 12)
+        back.Position = UDim2.new(0.5, -4, 0.5, -4)
+        back.BackgroundColor3 = Theme.Accent
+        back.BackgroundTransparency = 0.6
+        back.BorderSizePixel = 0
+        back.ZIndex = 10
+        back.Parent = container
+        Corner(back, UDim.new(0, 3))
+
+        local front = Instance.new("Frame")
+        front.Size = UDim2.new(0, 10, 0, 10)
+        front.Position = UDim2.new(0.5, -7, 0.5, -7)
+        front.BackgroundColor3 = Theme.Accent
+        front.BackgroundTransparency = 0.15
+        front.BorderSizePixel = 0
+        front.ZIndex = 11
+        front.Parent = container
+        Corner(front, UDim.new(0, 3))
 
     elseif iconType == "diamond" then
+        -- Diamond with inner glow
         local d = Instance.new("Frame")
-        d.Size = UDim2.new(0, 11, 0, 11)
+        d.Size = UDim2.new(0, 13, 0, 13)
         d.AnchorPoint = Vector2.new(0.5, 0.5)
         d.Position = UDim2.new(0.5, 0, 0.5, 0)
         d.BackgroundColor3 = Theme.Accent
-        d.BackgroundTransparency = 0.3
+        d.BackgroundTransparency = 0.4
         d.Rotation = 45
         d.BorderSizePixel = 0
         d.ZIndex = 10
         d.Parent = container
         Corner(d, UDim.new(0, 2))
 
+        local dInner = Instance.new("Frame")
+        dInner.Size = UDim2.new(0, 7, 0, 7)
+        dInner.AnchorPoint = Vector2.new(0.5, 0.5)
+        dInner.Position = UDim2.new(0.5, 0, 0.5, 0)
+        dInner.BackgroundColor3 = Theme.Accent
+        dInner.BackgroundTransparency = 0
+        dInner.Rotation = 45
+        dInner.BorderSizePixel = 0
+        dInner.ZIndex = 11
+        dInner.Parent = container
+        Corner(dInner, UDim.new(0, 1))
+
     elseif iconType == "bars" then
+        -- Staggered signal bars (like wifi strength)
+        local widths = {6, 10, 14}
         for i = 0, 2 do
             local b = Instance.new("Frame")
-            b.Size = UDim2.new(0, 14, 0, 2)
-            b.AnchorPoint = Vector2.new(0.5, 0.5)
-            b.Position = UDim2.new(0.5, 0, 0.5, -5 + (i * 5))
+            b.Size = UDim2.new(0, widths[i+1], 0, 3)
+            b.Position = UDim2.new(0, 3, 0, 3 + (i * 6))
             b.BackgroundColor3 = Theme.Accent
-            b.BackgroundTransparency = 0.3
+            b.BackgroundTransparency = 0.15 + (0.2 * (2 - i))
             b.BorderSizePixel = 0
             b.ZIndex = 10
             b.Parent = container
@@ -526,26 +572,41 @@ local function CreateTabIcon(parent, iconType)
         end
 
     elseif iconType == "triangle" then
-        local t = Instance.new("Frame")
-        t.Size = UDim2.new(0, 12, 0, 12)
-        t.AnchorPoint = Vector2.new(0.5, 0.5)
-        t.Position = UDim2.new(0.5, 0, 0.5, 1)
-        t.BackgroundColor3 = Theme.Accent
-        t.BackgroundTransparency = 0.3
-        t.Rotation = 45
-        t.BorderSizePixel = 0
-        t.ZIndex = 10
-        t.Parent = container
-        Corner(t, UDim.new(0, 2))
+        -- Arrow/chevron pointing right
+        local line1 = Instance.new("Frame")
+        line1.Size = UDim2.new(0, 10, 0, 3)
+        line1.AnchorPoint = Vector2.new(0, 0.5)
+        line1.Position = UDim2.new(0.2, 0, 0.5, -3)
+        line1.BackgroundColor3 = Theme.Accent
+        line1.BackgroundTransparency = 0.2
+        line1.Rotation = 35
+        line1.BorderSizePixel = 0
+        line1.ZIndex = 10
+        line1.Parent = container
+        Corner(line1, UDim.new(1, 0))
+
+        local line2 = Instance.new("Frame")
+        line2.Size = UDim2.new(0, 10, 0, 3)
+        line2.AnchorPoint = Vector2.new(0, 0.5)
+        line2.Position = UDim2.new(0.2, 0, 0.5, 3)
+        line2.BackgroundColor3 = Theme.Accent
+        line2.BackgroundTransparency = 0.2
+        line2.Rotation = -35
+        line2.BorderSizePixel = 0
+        line2.ZIndex = 10
+        line2.Parent = container
+        Corner(line2, UDim.new(1, 0))
 
     elseif iconType == "dot-grid" then
-        for row = 0, 1 do
-            for col = 0, 1 do
+        -- 3x3 grid with center highlight
+        for row = 0, 2 do
+            for col = 0, 2 do
+                local isCenter = (row == 1 and col == 1)
                 local d = Instance.new("Frame")
-                d.Size = UDim2.new(0, 5, 0, 5)
-                d.Position = UDim2.new(0, 3 + col * 9, 0, 3 + row * 9)
+                d.Size = UDim2.new(0, isCenter and 5 or 3, 0, isCenter and 5 or 3)
+                d.Position = UDim2.new(0, 2 + col * 7, 0, 2 + row * 7)
                 d.BackgroundColor3 = Theme.Accent
-                d.BackgroundTransparency = 0.3
+                d.BackgroundTransparency = isCenter and 0 or 0.5
                 d.BorderSizePixel = 0
                 d.ZIndex = 10
                 d.Parent = container
@@ -555,11 +616,11 @@ local function CreateTabIcon(parent, iconType)
 
     else
         local d = Instance.new("Frame")
-        d.Size = UDim2.new(0, 8, 0, 8)
+        d.Size = UDim2.new(0, 10, 0, 10)
         d.AnchorPoint = Vector2.new(0.5, 0.5)
         d.Position = UDim2.new(0.5, 0, 0.5, 0)
         d.BackgroundColor3 = Theme.Accent
-        d.BackgroundTransparency = 0.3
+        d.BackgroundTransparency = 0.2
         d.BorderSizePixel = 0
         d.ZIndex = 10
         d.Parent = container
@@ -579,7 +640,7 @@ function GluttonyUI:CreateWindow(options)
     end
     options = options or {}
 
-    local title      = options.Title or "Gluttony UI"
+    local title      = "Gluttony Core"
     local configName = options.ConfigName
 
     -- Cleanup any previous instance
@@ -1568,16 +1629,16 @@ function GluttonyUI:CreateWindow(options)
 
             local panel = Instance.new("ScrollingFrame")
             panel.Size = UDim2.new(0, 180, 0, 0)
-            panel.Position = UDim2.new(1, -196, 1, 4)
+            panel.Position = UDim2.new(0, 0, 0, 0) -- will be set dynamically
             panel.BackgroundColor3 = Theme.DropdownBg
             panel.BorderSizePixel = 0
             panel.ClipsDescendants = true
             panel.ScrollBarThickness = 3
             panel.ScrollBarImageColor3 = Theme.Accent
             panel.CanvasSize = UDim2.new(0, 0, 0, 0)
-            panel.ZIndex = 50
+            panel.ZIndex = 100
             panel.Visible = false
-            panel.Parent = row
+            panel.Parent = content
             Corner(panel, UDim.new(0, 6))
             Stroke(panel, Theme.Accent, 1, 0.6)
 
@@ -1614,7 +1675,7 @@ function GluttonyUI:CreateWindow(options)
                     optBtn.BorderSizePixel = 0
                     optBtn.AutoButtonColor = false
                     optBtn.LayoutOrder = i
-                    optBtn.ZIndex = 51
+                    optBtn.ZIndex = 101
                     optBtn.Parent = panel
                     Corner(optBtn, UDim.new(0, 5))
 
@@ -1644,8 +1705,16 @@ function GluttonyUI:CreateWindow(options)
                 isOpen = not isOpen
                 if isOpen then
                     local targetH = BuildOptions()
-                    panel.Visible = true
+                    
+                    -- Position panel relative to the dropdown button
+                    local absPos = ddBtn.AbsolutePosition
+                    local absSize = ddBtn.AbsoluteSize
+                    local contentPos = content.AbsolutePosition
+                    
+                    panel.Position = UDim2.new(0, absPos.X - contentPos.X, 0, absPos.Y - contentPos.Y + absSize.Y + 4)
                     panel.Size = UDim2.new(0, 180, 0, 0)
+                    panel.Visible = true
+                    
                     Tween(panel, {Size = UDim2.new(0, 180, 0, targetH)}, 0.25, Enum.EasingStyle.Quart)
                     Tween(arrow, {Rotation = 180}, 0.25)
                 else
@@ -2079,6 +2148,19 @@ function GluttonyUI:CreateWindow(options)
         local function ApplyOpacity(val)
             local t = 1 - (val / 100)
             main.BackgroundTransparency = t
+            if titleBar then titleBar.BackgroundTransparency = t end
+            if sidebar then sidebar.BackgroundTransparency = t end
+            if content then content.BackgroundTransparency = t end
+            -- Apply to title cover too
+            local cover = titleBar:FindFirstChild("Frame")
+            if cover then cover.BackgroundTransparency = t end
+            for _, pg in pairs(Window._pages) do
+                for _, child in pairs(pg:GetChildren()) do
+                    if child:IsA("Frame") and not child:FindFirstChild("ToggleCircle") and not child.Name:find("Slider") and not child.Name:find("HoverBar") then
+                        child.BackgroundTransparency = math.max(t, child.BackgroundTransparency)
+                    end
+                end
+            end
         end
 
         local function UpdateOpacity(input)
@@ -2187,25 +2269,15 @@ function GluttonyUI:CreateWindow(options)
         infoIconBg.Parent = infoCard
         Corner(infoIconBg, UDim.new(1, 0))
 
-        local infoIconDot = Instance.new("Frame")
-        infoIconDot.Size = UDim2.new(0, 4, 0, 4)
-        infoIconDot.AnchorPoint = Vector2.new(0.5, 0.5)
-        infoIconDot.Position = UDim2.new(0.5, 0, 0, 8)
-        infoIconDot.BackgroundColor3 = Theme.Accent
-        infoIconDot.BorderSizePixel = 0
-        infoIconDot.ZIndex = 8
-        infoIconDot.Parent = infoIconBg
-        Corner(infoIconDot, UDim.new(1, 0))
-
-        local infoIconLine = Instance.new("Frame")
-        infoIconLine.Size = UDim2.new(0, 3, 0, 10)
-        infoIconLine.AnchorPoint = Vector2.new(0.5, 0)
-        infoIconLine.Position = UDim2.new(0.5, 0, 0, 14)
-        infoIconLine.BackgroundColor3 = Theme.Accent
-        infoIconLine.BorderSizePixel = 0
-        infoIconLine.ZIndex = 8
-        infoIconLine.Parent = infoIconBg
-        Corner(infoIconLine, UDim.new(1, 0))
+        local infoIconText = Instance.new("TextLabel")
+        infoIconText.Size = UDim2.new(1, 0, 1, 0)
+        infoIconText.BackgroundTransparency = 1
+        infoIconText.Text = "i"
+        infoIconText.TextColor3 = Theme.Accent
+        infoIconText.TextSize = 16
+        infoIconText.Font = Enum.Font.GothamBold
+        infoIconText.ZIndex = 8
+        infoIconText.Parent = infoIconBg
 
         local infoText = Instance.new("TextLabel")
         infoText.Size = UDim2.new(1, -70, 1, -20)
@@ -2325,109 +2397,211 @@ function GluttonyUI:CreateWindow(options)
 
         SetupHover(discordRow, RowColor(discordOrder), discordAccent)
 
-        -- ══════════════════════════════════════════════════════
-        -- SECTION: ABOUT
-        -- ══════════════════════════════════════════════════════
-
-        local aboutSectionOrder = NextSettingsOrder()
-        local aboutLabel = Instance.new("TextLabel")
-        aboutLabel.Size = UDim2.new(1, 0, 0, 30)
-        aboutLabel.BackgroundTransparency = 1
-        aboutLabel.Text = "About"
-        aboutLabel.TextColor3 = Theme.Accent
-        aboutLabel.TextSize = 15
-        aboutLabel.Font = Theme.Font
-        aboutLabel.TextXAlignment = Enum.TextXAlignment.Left
-        aboutLabel.LayoutOrder = aboutSectionOrder
-        aboutLabel.ZIndex = 7
-        aboutLabel.Parent = page
-
-        local aboutSepContainer = Instance.new("Frame")
-        aboutSepContainer.Size = UDim2.new(1, 0, 0, 8)
-        aboutSepContainer.BackgroundTransparency = 1
-        aboutSepContainer.LayoutOrder = aboutSectionOrder + 0.5
-        aboutSepContainer.Parent = page
-
-        local aboutSep = Instance.new("Frame")
-        aboutSep.Size = UDim2.new(0.4, 0, 0, 1)
-        aboutSep.Position = UDim2.new(0, 0, 0.5, 0)
-        aboutSep.BackgroundColor3 = Theme.Accent
-        aboutSep.BackgroundTransparency = 0.5
-        aboutSep.BorderSizePixel = 0
-        aboutSep.ZIndex = 7
-        aboutSep.Parent = aboutSepContainer
-        Corner(aboutSep, UDim.new(1, 0))
-
-        local aboutSepGrad = Instance.new("UIGradient")
-        aboutSepGrad.Transparency = NumberSequence.new({
-            NumberSequenceKeypoint.new(0, 0),
-            NumberSequenceKeypoint.new(0.5, 0.3),
-            NumberSequenceKeypoint.new(1, 1),
-        })
-        aboutSepGrad.Parent = aboutSep
-
-        -- About card
-        local aboutOrder = NextSettingsOrder()
-        local aboutCard = Instance.new("Frame")
-        aboutCard.Size = UDim2.new(1, 0, 0, 70)
-        aboutCard.BackgroundColor3 = Color3.fromRGB(28, 30, 38)
-        aboutCard.BorderSizePixel = 0
-        aboutCard.LayoutOrder = aboutOrder
-        aboutCard.ZIndex = 6
-        aboutCard.Parent = page
-        Corner(aboutCard, Theme.CornerRadius)
-        Stroke(aboutCard, Theme.Border, 1, 0.4)
-
-        -- Accent line top
-        local aboutTopLine = Instance.new("Frame")
-        aboutTopLine.Size = UDim2.new(1, -20, 0, 1)
-        aboutTopLine.Position = UDim2.new(0, 10, 0, 0)
-        aboutTopLine.BackgroundColor3 = Theme.Accent
-        aboutTopLine.BackgroundTransparency = 0.7
-        aboutTopLine.BorderSizePixel = 0
-        aboutTopLine.ZIndex = 7
-        aboutTopLine.Parent = aboutCard
-
-        local aboutTitleLabel = Instance.new("TextLabel")
-        aboutTitleLabel.Size = UDim2.new(1, -30, 0, 22)
-        aboutTitleLabel.Position = UDim2.new(0, 15, 0, 10)
-        aboutTitleLabel.BackgroundTransparency = 1
-        aboutTitleLabel.Text = "Gluttony UI Library"
-        aboutTitleLabel.TextColor3 = Theme.Text
-        aboutTitleLabel.TextSize = 15
-        aboutTitleLabel.Font = Theme.Font
-        aboutTitleLabel.TextXAlignment = Enum.TextXAlignment.Left
-        aboutTitleLabel.ZIndex = 7
-        aboutTitleLabel.Parent = aboutCard
-
+        -- ── VERSION LABEL (bottom right, subtle) ─────────────
         local versionLabel = Instance.new("TextLabel")
-        versionLabel.Size = UDim2.new(0, 50, 0, 22)
-        versionLabel.Position = UDim2.new(1, -65, 0, 10)
+        versionLabel.Size = UDim2.new(0, 40, 0, 16)
+        versionLabel.Position = UDim2.new(1, -50, 1, -22)
         versionLabel.BackgroundTransparency = 1
-        versionLabel.Text = "v1.3"
-        versionLabel.TextColor3 = Theme.Accent
-        versionLabel.TextSize = 13
-        versionLabel.Font = Theme.Font
+        versionLabel.Text = "v1.0"
+        versionLabel.TextColor3 = Theme.TextDim
+        versionLabel.TextTransparency = 0.5
+        versionLabel.TextSize = 11
+        versionLabel.Font = Theme.FontLight
         versionLabel.TextXAlignment = Enum.TextXAlignment.Right
-        versionLabel.ZIndex = 7
-        versionLabel.Parent = aboutCard
-
-        local aboutDescLabel = Instance.new("TextLabel")
-        aboutDescLabel.Size = UDim2.new(1, -30, 0, 28)
-        aboutDescLabel.Position = UDim2.new(0, 15, 0, 34)
-        aboutDescLabel.BackgroundTransparency = 1
-        aboutDescLabel.Text = "A clean, minimal UI framework. Built for performance and simplicity."
-        aboutDescLabel.TextColor3 = Theme.TextDim
-        aboutDescLabel.TextSize = 12
-        aboutDescLabel.Font = Theme.FontLight
-        aboutDescLabel.TextXAlignment = Enum.TextXAlignment.Left
-        aboutDescLabel.TextWrapped = true
-        aboutDescLabel.ZIndex = 7
-        aboutDescLabel.Parent = aboutCard
+        versionLabel.ZIndex = 15
+        versionLabel.Parent = inner
     end
 
     BuildSettingsTab()
+        -- ════════════════════════════════════════════════════════
+    -- TOGGLE BUTTON (left edge, draggable)
+    -- ════════════════════════════════════════════════════════
 
+    local ToggleButton = Instance.new("Frame")
+    ToggleButton.Name = "ToggleButton"
+    ToggleButton.Size = UDim2.new(0, 36, 0, 90)
+    ToggleButton.Position = UDim2.new(0, -4, 0.5, -45)
+    ToggleButton.BackgroundColor3 = Theme.Background
+    ToggleButton.BorderSizePixel = 0
+    ToggleButton.ZIndex = 100
+    ToggleButton.Parent = screenGui
+    Corner(ToggleButton, UDim.new(0, 12))
+    Stroke(ToggleButton, Theme.Accent, 2, 0.5)
+
+    -- Left cover to hide left rounded corners
+    local leftCover = Instance.new("Frame")
+    leftCover.Size = UDim2.new(0, 12, 1, 0)
+    leftCover.BackgroundColor3 = Theme.Background
+    leftCover.BorderSizePixel = 0
+    leftCover.ZIndex = 101
+    leftCover.Parent = ToggleButton
+
+    -- Accent bar (pulsing)
+    local accentBar = Instance.new("Frame")
+    accentBar.Name = "AccentBar"
+    accentBar.AnchorPoint = Vector2.new(0.5, 0.5)
+    accentBar.Size = UDim2.new(0, 3, 0, 35)
+    accentBar.Position = UDim2.new(1, -5, 0.5, 0)
+    accentBar.BackgroundColor3 = Theme.Accent
+    accentBar.BorderSizePixel = 0
+    accentBar.ZIndex = 105
+    accentBar.Parent = ToggleButton
+    Corner(accentBar, UDim.new(1, 0))
+
+    -- Dots
+    local dotsContainer = Instance.new("Frame")
+    dotsContainer.Size = UDim2.new(0, 12, 0, 50)
+    dotsContainer.Position = UDim2.new(0, 8, 0.5, -25)
+    dotsContainer.BackgroundTransparency = 1
+    dotsContainer.ZIndex = 105
+    dotsContainer.Parent = ToggleButton
+
+    local dots = {}
+    for i = 1, 5 do
+        local dot = Instance.new("Frame")
+        dot.Size = UDim2.new(0, 6, 0, 6)
+        dot.Position = UDim2.new(0.5, -3, 0, (i - 1) * 11)
+        dot.BackgroundColor3 = Theme.TextDim
+        dot.BackgroundTransparency = 0.3
+        dot.BorderSizePixel = 0
+        dot.ZIndex = 106
+        dot.Parent = dotsContainer
+        Corner(dot, UDim.new(1, 0))
+        table.insert(dots, dot)
+    end
+
+    local toggleClickBtn = Instance.new("TextButton")
+    toggleClickBtn.Size = UDim2.new(1, 0, 1, 0)
+    toggleClickBtn.BackgroundTransparency = 1
+    toggleClickBtn.Text = ""
+    toggleClickBtn.ZIndex = 110
+    toggleClickBtn.Parent = ToggleButton
+
+    -- Pulse animation
+    local pulseRunning = true
+    task.spawn(function()
+        while pulseRunning do
+            if not ToggleButton or not ToggleButton.Parent then break end
+            Tween(accentBar, {BackgroundTransparency = 0.3}, 1.2, Enum.EasingStyle.Sine)
+            task.wait(1.2)
+            if not ToggleButton or not ToggleButton.Parent then break end
+            Tween(accentBar, {BackgroundTransparency = 0}, 1.2, Enum.EasingStyle.Sine)
+            task.wait(1.2)
+        end
+    end)
+
+    -- Drag state
+    local tbDragging = false
+    local tbDragStartY = 0
+    local tbButtonStartY = 0
+    local tbHasMoved = false
+    local tbClickDebounce = false
+    local guiOpen = true -- starts visible
+
+    local function getTbYOffset()
+        return ToggleButton.Position.Y.Offset
+    end
+
+    local function setTbY(yOffset)
+        local screenH = screenGui.AbsoluteSize.Y
+        local btnH = ToggleButton.AbsoluteSize.Y
+        local minY = -screenH / 2 + btnH / 2 + 20
+        local maxY = screenH / 2 - btnH / 2 - 20
+        yOffset = math.clamp(yOffset, minY, maxY)
+        local xPos = guiOpen and 0 or -4
+        ToggleButton.Position = UDim2.new(0, xPos, 0.5, yOffset)
+    end
+
+    -- Mouse down
+    AddConnection(toggleClickBtn.MouseButton1Down:Connect(function()
+        if tbClickDebounce then return end
+        tbDragging = true
+        tbHasMoved = false
+        tbDragStartY = UserInputService:GetMouseLocation().Y
+        tbButtonStartY = getTbYOffset()
+    end))
+
+    -- Mouse up (click or end drag)
+    AddConnection(toggleClickBtn.MouseButton1Up:Connect(function()
+        if not tbDragging then return end
+        tbDragging = false
+
+        if not tbHasMoved and not tbClickDebounce then
+            tbClickDebounce = true
+            local currentY = getTbYOffset()
+
+            if guiOpen then
+                guiOpen = false
+                Tween(main, {Size = UDim2.new(0, Theme.WindowWidth, 0, 0)}, 0.3)
+                Tween(ToggleButton, {Position = UDim2.new(0, -4, 0.5, currentY)}, 0.25)
+                Tween(accentBar, {Size = UDim2.new(0, 3, 0, 35)}, 0.25)
+                task.delay(0.3, function()
+                    main.Visible = false
+                    tbClickDebounce = false
+                end)
+            else
+                guiOpen = true
+                main.Visible = true
+                main.Size = UDim2.new(0, Theme.WindowWidth, 0, 0)
+                Tween(main, {Size = UDim2.new(0, Theme.WindowWidth, 0, Theme.WindowHeight)}, 0.35, Enum.EasingStyle.Back)
+                Tween(ToggleButton, {Position = UDim2.new(0, 0, 0.5, currentY)}, 0.25)
+                Tween(accentBar, {Size = UDim2.new(0, 3, 0, 55)}, 0.25)
+                task.delay(0.35, function()
+                    tbClickDebounce = false
+                end)
+            end
+        end
+    end))
+
+    -- Drag movement
+    AddConnection(UserInputService.InputChanged:Connect(function(input)
+        if not tbDragging then return end
+        if input.UserInputType ~= Enum.UserInputType.MouseMovement and input.UserInputType ~= Enum.UserInputType.Touch then return end
+        local currentMouseY = UserInputService:GetMouseLocation().Y
+        local deltaY = currentMouseY - tbDragStartY
+        if math.abs(deltaY) > 5 then tbHasMoved = true end
+        if tbHasMoved then setTbY(tbButtonStartY + deltaY) end
+    end))
+
+    AddConnection(UserInputService.InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+            tbDragging = false
+        end
+    end))
+
+    -- Hover effects
+    AddConnection(toggleClickBtn.MouseEnter:Connect(function()
+        Tween(ToggleButton, {BackgroundColor3 = Theme.Hover}, 0.2)
+        Tween(leftCover, {BackgroundColor3 = Theme.Hover}, 0.2)
+        local currentY = getTbYOffset()
+        Tween(ToggleButton, {Position = UDim2.new(0, 0, 0.5, currentY)}, 0.2)
+        for i, dot in ipairs(dots) do
+            task.delay(i * 0.04, function()
+                Tween(dot, {BackgroundColor3 = Theme.Accent, BackgroundTransparency = 0, Size = UDim2.new(0, 8, 0, 8), Position = UDim2.new(0.5, -4, 0, (i-1)*11 - 1)}, 0.15)
+            end)
+        end
+    end))
+
+    AddConnection(toggleClickBtn.MouseLeave:Connect(function()
+        Tween(ToggleButton, {BackgroundColor3 = Theme.Background}, 0.2)
+        Tween(leftCover, {BackgroundColor3 = Theme.Background}, 0.2)
+        if not guiOpen and not tbDragging then
+            local currentY = getTbYOffset()
+            Tween(ToggleButton, {Position = UDim2.new(0, -4, 0.5, currentY)}, 0.2)
+        end
+        for i, dot in ipairs(dots) do
+            task.delay(i * 0.04, function()
+                Tween(dot, {BackgroundColor3 = Theme.TextDim, BackgroundTransparency = 0.3, Size = UDim2.new(0, 6, 0, 6), Position = UDim2.new(0.5, -3, 0, (i-1)*11)}, 0.15)
+            end)
+        end
+    end))
+
+    -- Clean up pulse on destroy
+    local origDestroy = Window.Destroy
+    function Window:Destroy()
+        pulseRunning = false
+        origDestroy(self)
+    end
     return Window
 end
 
