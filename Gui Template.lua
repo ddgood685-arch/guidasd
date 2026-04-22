@@ -1559,6 +1559,29 @@ function GluttonyUI:CreateWindow(options)
             local function GetPanelSize(targetH)
                 return UDim2.new(0, ddBtn.AbsoluteSize.X, 0, targetH)
             end
+
+            local trackingConnection = nil
+
+            local function StartTrackingPosition()
+                if trackingConnection then return end
+                trackingConnection = AddConnection(RunService.Heartbeat:Connect(function()
+                    if isOpen and panel.Visible and panel.Parent then
+                        -- Reposition every frame while open — zero lag, handles scroll + drag
+                        panel.Position = GetPanelPosition()
+                    elseif not isOpen then
+                        -- Auto-stop when closed
+                        if trackingConnection then
+                            -- Can't disconnect from AddConnection table easily,
+                            -- so just gate with isOpen check above
+                        end
+                    end
+                end))
+            end
+
+            local function StopTrackingScroll()
+                -- We don't disconnect per-dropdown (AddConnection manages lifetime)
+                -- Just let the open check gate it
+            end
             
             ConfigManager:RegisterUpdater(labelText, function(val)
                 if type(val) == "string" then
@@ -1594,9 +1617,9 @@ function GluttonyUI:CreateWindow(options)
                         ConfigManager:Set(labelText, opt)
                         ddLabel.Text = opt
                         ddLabel.TextColor3 = Theme.Text
-                        isOpen = false
+                        isOpen = false          -- ✅ gates the Heartbeat tracker
                         activeDropdownPanel = nil
-                        Tween(panel, {Size = GetPanelSize(0)}, 0.2)  -- ✅ use helper
+                        Tween(panel, {Size = GetPanelSize(0)}, 0.2)
                         Tween(arrowFrame, {Rotation = 0}, 0.2)
                         task.delay(0.2, function() panel.Visible = false end)
                         if callback then task.spawn(callback, opt) end
@@ -1617,12 +1640,13 @@ function GluttonyUI:CreateWindow(options)
 
                     local targetH = BuildOptions()
 
-                    -- ✅ Calculate position fresh each time (handles scroll offset)
                     panel.Position = GetPanelPosition()
                     panel.Size = GetPanelSize(0)
                     panel.Visible = true
                     Tween(panel, {Size = GetPanelSize(targetH)}, 0.25)
                     Tween(arrowFrame, {Rotation = 180}, 0.25)
+
+                    StartTrackingPosition()  -- ✅ begin following scroll
                 else
                     activeDropdownPanel = nil
                     Tween(panel, {Size = GetPanelSize(0)}, 0.2)
