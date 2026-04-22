@@ -1442,7 +1442,6 @@ function GluttonyUI:CreateWindow(options)
         function Tab:AddDropdown(labelText, options, callback)
             local order = NextOrder()
             local isOpen = false
-            local syncConn = nil
 
             local saved = StateStore[labelText]
             local selected = nil
@@ -1458,8 +1457,8 @@ function GluttonyUI:CreateWindow(options)
             row.BackgroundColor3 = RowColor(order)
             row.BorderSizePixel = 0
             row.LayoutOrder = order
-            row.ZIndex = 6
-            row.ClipsDescendants = false
+            row.ZIndex = 10 -- Higher ZIndex so it overlaps rows below it
+            row.ClipsDescendants = false -- Must be false so the panel can leak out of the row
             row.Parent = page
             Corner(row, Theme.CornerRadius)
 
@@ -1474,7 +1473,7 @@ function GluttonyUI:CreateWindow(options)
             lbl.TextSize = 14
             lbl.Font = Theme.FontLight
             lbl.TextXAlignment = Enum.TextXAlignment.Left
-            lbl.ZIndex = 7
+            lbl.ZIndex = 11
             lbl.Parent = row
 
             local ddBtn = Instance.new("Frame")
@@ -1482,7 +1481,7 @@ function GluttonyUI:CreateWindow(options)
             ddBtn.Position = UDim2.new(1, -196, 0.5, -15)
             ddBtn.BackgroundColor3 = Theme.InputBg
             ddBtn.BorderSizePixel = 0
-            ddBtn.ZIndex = 8
+            ddBtn.ZIndex = 12
             ddBtn.Parent = row
             Corner(ddBtn, UDim.new(0, 6))
             Stroke(ddBtn, Theme.Border, 1, 0.5)
@@ -1496,14 +1495,14 @@ function GluttonyUI:CreateWindow(options)
             ddLabel.TextSize = 13
             ddLabel.Font = Theme.FontLight
             ddLabel.TextXAlignment = Enum.TextXAlignment.Left
-            ddLabel.ZIndex = 9
+            ddLabel.ZIndex = 13
             ddLabel.Parent = ddBtn
 
             local arrowFrame = Instance.new("Frame")
             arrowFrame.Size = UDim2.new(0, 12, 0, 12)
             arrowFrame.Position = UDim2.new(1, -22, 0.5, -6)
             arrowFrame.BackgroundTransparency = 1
-            arrowFrame.ZIndex = 9
+            arrowFrame.ZIndex = 13
             arrowFrame.Parent = ddBtn
 
             local arrowLeft = Instance.new("Frame")
@@ -1530,24 +1529,22 @@ function GluttonyUI:CreateWindow(options)
             ddClick.Size = UDim2.new(1, 0, 1, 0)
             ddClick.BackgroundTransparency = 1
             ddClick.Text = ""
-            ddClick.ZIndex = 10
+            ddClick.ZIndex = 14
             ddClick.Parent = ddBtn
 
-            -- Parent to 'inner' so it:
-            -- 1. Clips to the main window bounds (no going off screen)
-            -- 2. Renders above ALL page content (high ZIndex)
-            -- 3. Is unaffected by page scrolling (we handle position manually)
+            -- FIX: Parented directly to the Button. 
+            -- This makes it move 1:1 with the GUI with ZERO lag.
             local panel = Instance.new("ScrollingFrame")
-            panel.Size = UDim2.new(0, 180, 0, 0)
-            panel.Position = UDim2.new(0, 0, 0, 0)
+            panel.Size = UDim2.new(1, 0, 0, 0)
+            panel.Position = UDim2.new(0, 0, 1, 4)
             panel.BackgroundColor3 = Theme.DropdownBg
             panel.BorderSizePixel = 0
             panel.ClipsDescendants = true
             panel.ScrollBarThickness = 3
             panel.ScrollBarImageColor3 = Theme.Accent
-            panel.ZIndex = 200
+            panel.ZIndex = 50 -- Very high to ensure it draws over other rows
             panel.Visible = false
-            panel.Parent = inner  -- Key change: parent to inner, not page or screenGui
+            panel.Parent = ddBtn 
             Corner(panel, UDim.new(0, 6))
             Stroke(panel, Theme.Accent, 1, 0.6)
 
@@ -1556,82 +1553,11 @@ function GluttonyUI:CreateWindow(options)
 
             ConfigManager:RegisterUpdater(labelText, function(val)
                 if type(val) == "string" then
-                    local valid = false
-                    for _, opt in ipairs(options) do
-                        if opt == val then valid = true; break end
-                    end
-                    if valid then
-                        selected = val
-                        ddLabel.Text = val
-                        ddLabel.TextColor3 = Theme.Text
-                    end
+                    selected = val
+                    ddLabel.Text = val
+                    ddLabel.TextColor3 = Theme.Text
                 end
             end)
-
-            -- Converts a button's absolute screen position into a position
-            -- relative to 'inner', which is what the panel needs since it's
-            -- parented to inner.
-            local function GetPanelPosition()
-                local btnAbs = ddBtn.AbsolutePosition
-                local btnSize = ddBtn.AbsoluteSize
-                local innerAbs = inner.AbsolutePosition
-
-                local relX = btnAbs.X - innerAbs.X
-                local relY = btnAbs.Y - innerAbs.Y + btnSize.Y + 4
-
-                -- Clamp so panel never goes below the window bottom
-                local innerH = inner.AbsoluteSize.Y
-                local panelH = panel.AbsoluteSize.Y
-                if relY + panelH > innerH then
-                    -- Flip above the button instead
-                    relY = (btnAbs.Y - innerAbs.Y) - panelH - 4
-                end
-
-                return UDim2.new(0, relX, 0, relY)
-            end
-
-            local function StopSync()
-                if syncConn then
-                    syncConn:Disconnect()
-                    syncConn = nil
-                end
-            end
-
-            local function StartSync()
-                StopSync()
-                syncConn = RunService.RenderStepped:Connect(function()
-                    if not isOpen or not panel.Visible then
-                        StopSync()
-                        return
-                    end
-                    -- Check if the ddBtn has scrolled outside the visible content area
-                    local btnAbs = ddBtn.AbsolutePosition
-                    local btnSize = ddBtn.AbsoluteSize
-                    local contentAbs = content.AbsolutePosition
-                    local contentSize = content.AbsoluteSize
-
-                    local scrolledOut = (btnAbs.Y + btnSize.Y < contentAbs.Y)
-                                    or (btnAbs.Y > contentAbs.Y + contentSize.Y)
-
-                    if scrolledOut then
-                        panel.Visible = false
-                    else
-                        panel.Visible = true
-                        panel.Position = GetPanelPosition()
-                    end
-                end)
-            end
-
-            local function ClosePanel()
-                isOpen = false
-                activeDropdownPanel = nil
-                StopSync()
-                Tween(panel, {Size = UDim2.new(0, 180, 0, 0)}, 0.2)
-                Tween(arrowFrame, {Rotation = 0}, 0.2)
-                task.delay(0.21, function()
-                    if not isOpen then panel.Visible = false end
-                end)
-            end
 
             local function BuildOptions()
                 for _, child in pairs(panel:GetChildren()) do
@@ -1648,26 +1574,20 @@ function GluttonyUI:CreateWindow(options)
                     optBtn.BorderSizePixel = 0
                     optBtn.AutoButtonColor = false
                     optBtn.LayoutOrder = i
-                    optBtn.ZIndex = 201
+                    optBtn.ZIndex = 51
                     optBtn.Parent = panel
                     Corner(optBtn, UDim.new(0, 5))
 
-                    AddConnection(optBtn.MouseEnter:Connect(function()
-                        if selected ~= opt then
-                            Tween(optBtn, {BackgroundColor3 = Theme.DropdownHover}, 0.1)
-                        end
-                    end))
-                    AddConnection(optBtn.MouseLeave:Connect(function()
-                        if selected ~= opt then
-                            Tween(optBtn, {BackgroundColor3 = Theme.DropdownBg}, 0.1)
-                        end
-                    end))
                     AddConnection(optBtn.MouseButton1Click:Connect(function()
                         selected = opt
                         ConfigManager:Set(labelText, opt)
                         ddLabel.Text = opt
                         ddLabel.TextColor3 = Theme.Text
-                        ClosePanel()
+                        isOpen = false
+                        activeDropdownPanel = nil
+                        Tween(panel, {Size = UDim2.new(1, 0, 0, 0)}, 0.2)
+                        Tween(arrowFrame, {Rotation = 0}, 0.2)
+                        task.delay(0.2, function() panel.Visible = false end)
                         if callback then task.spawn(callback, opt) end
                     end))
                 end
@@ -1677,28 +1597,22 @@ function GluttonyUI:CreateWindow(options)
 
             AddConnection(ddClick.MouseButton1Click:Connect(function()
                 isOpen = not isOpen
-
                 if isOpen then
-                    -- Close any other open dropdown
                     if activeDropdownPanel and activeDropdownPanel ~= panel then
                         activeDropdownPanel.Visible = false
-                        activeDropdownPanel.Size = UDim2.new(0, 180, 0, 0)
+                        activeDropdownPanel.Size = UDim2.new(1, 0, 0, 0)
                     end
                     activeDropdownPanel = panel
-
+                    
                     local targetH = BuildOptions()
-
-                    -- Set size to 0 first so tween works correctly
-                    panel.Size = UDim2.new(0, 180, 0, 0)
-                    panel.Position = GetPanelPosition()
                     panel.Visible = true
-
-                    Tween(panel, {Size = UDim2.new(0, 180, 0, targetH)}, 0.25)
+                    Tween(panel, {Size = UDim2.new(1, 0, 0, targetH)}, 0.25)
                     Tween(arrowFrame, {Rotation = 180}, 0.25)
-
-                    StartSync()
                 else
-                    ClosePanel()
+                    activeDropdownPanel = nil
+                    Tween(panel, {Size = UDim2.new(1, 0, 0, 0)}, 0.2)
+                    Tween(arrowFrame, {Rotation = 0}, 0.2)
+                    task.delay(0.2, function() panel.Visible = false end)
                 end
             end))
 
