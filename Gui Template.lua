@@ -793,8 +793,10 @@ function GluttonyUI:CreateWindow(options)
         -- Close any open dropdown
         if activeDropdownPanel and activeDropdownPanel.Parent then
             activeDropdownPanel.Visible = false
-            activeDropdownPanel.Size = UDim2.new(0, 0, 0, 0)  -- ✅ absolute size now
+            activeDropdownPanel.Size = UDim2.new(0, 0, 0, 0)
             activeDropdownPanel = nil
+            -- Note: trackingConnection can't be stopped here without more 
+            -- refactoring, but isOpen=false gates the Heartbeat check above
         end
 
         Window._currentTab = tabName
@@ -1529,58 +1531,54 @@ function GluttonyUI:CreateWindow(options)
             ddClick.Parent = ddBtn
 
             -- REPLACE with: parent to content, calculate absolute position
-
             local panel = Instance.new("ScrollingFrame")
-            panel.Size = UDim2.new(0, 0, 0, 0)  -- sized absolutely below
+            panel.Size = UDim2.new(0, 0, 0, 0)
             panel.BackgroundColor3 = Theme.DropdownBg
             panel.BorderSizePixel = 0
             panel.ClipsDescendants = true
             panel.ScrollBarThickness = 3
             panel.ScrollBarImageColor3 = Theme.Accent
-            panel.ZIndex = 200  -- high enough to clear everything
+            panel.ZIndex = 500  -- very high, above everything
             panel.Visible = false
-            panel.Parent = content  -- ✅ parent to content, not ddBtn
+            panel.Parent = screenGui  -- ✅ parent to screenGui, not content
             Corner(panel, UDim.new(0, 6))
             Stroke(panel, Theme.Accent, 1, 0.6)
 
             local panelLayout = ListLayout(panel, 2)
             Padding(panel, 4, 4, 4, 4)
 
+            -- Fix GetPanelPosition to use screenGui-relative coordinates:
             local function GetPanelPosition()
-                -- Get ddBtn's absolute position relative to content
                 local ddAbs = ddBtn.AbsolutePosition
-                local contentAbs = content.AbsolutePosition
-                local relX = ddAbs.X - contentAbs.X
-                local relY = ddAbs.Y - contentAbs.Y + ddBtn.AbsoluteSize.Y + 4
+                local screenGuiOffset = screenGui.AbsolutePosition  -- usually 0,0
+                -- Account for GuiService inset (top bar)
+                local inset = GuiService:GetGuiInset()
+                local relX = ddAbs.X - screenGuiOffset.X
+                local relY = ddAbs.Y - screenGuiOffset.Y + ddBtn.AbsoluteSize.Y + 4 - inset.Y
                 return UDim2.new(0, relX, 0, relY)
             end
 
-            -- Also set the panel width to match ddBtn
             local function GetPanelSize(targetH)
                 return UDim2.new(0, ddBtn.AbsoluteSize.X, 0, targetH)
             end
 
+            -- can actually be disconnected:
             local trackingConnection = nil
 
             local function StartTrackingPosition()
-                if trackingConnection then return end
-                trackingConnection = AddConnection(RunService.Heartbeat:Connect(function()
-                    if isOpen and panel.Visible and panel.Parent then
-                        -- Reposition every frame while open — zero lag, handles scroll + drag
+                if trackingConnection then return end  
+                trackingConnection = RunService.Heartbeat:Connect(function()
+                    if isOpen and panel.Visible then
                         panel.Position = GetPanelPosition()
-                    elseif not isOpen then
-                        -- Auto-stop when closed
-                        if trackingConnection then
-                            -- Can't disconnect from AddConnection table easily,
-                            -- so just gate with isOpen check above
-                        end
                     end
-                end))
+                end)
             end
 
-            local function StopTrackingScroll()
-                -- We don't disconnect per-dropdown (AddConnection manages lifetime)
-                -- Just let the open check gate it
+            local function StopTrackingPosition()
+                if trackingConnection then
+                    trackingConnection:Disconnect()  -- ✅ actually disconnect it
+                    trackingConnection = nil
+                end
             end
             
             ConfigManager:RegisterUpdater(labelText, function(val)
@@ -1617,8 +1615,9 @@ function GluttonyUI:CreateWindow(options)
                         ConfigManager:Set(labelText, opt)
                         ddLabel.Text = opt
                         ddLabel.TextColor3 = Theme.Text
-                        isOpen = false          -- ✅ gates the Heartbeat tracker
+                        isOpen = false
                         activeDropdownPanel = nil
+                        StopTrackingPosition()  -- ✅ stop tracking on select
                         Tween(panel, {Size = GetPanelSize(0)}, 0.2)
                         Tween(arrowFrame, {Rotation = 0}, 0.2)
                         task.delay(0.2, function() panel.Visible = false end)
@@ -1629,6 +1628,7 @@ function GluttonyUI:CreateWindow(options)
                 return math.min(#options * 32 + 10, 160)
             end
 
+            -- Update open/close logic to use StopTrackingPosition:
             AddConnection(ddClick.MouseButton1Click:Connect(function()
                 isOpen = not isOpen
                 if isOpen then
@@ -1639,16 +1639,15 @@ function GluttonyUI:CreateWindow(options)
                     activeDropdownPanel = panel
 
                     local targetH = BuildOptions()
-
                     panel.Position = GetPanelPosition()
                     panel.Size = GetPanelSize(0)
                     panel.Visible = true
                     Tween(panel, {Size = GetPanelSize(targetH)}, 0.25)
                     Tween(arrowFrame, {Rotation = 180}, 0.25)
-
-                    StartTrackingPosition()  -- ✅ begin following scroll
+                    StartTrackingPosition()  -- ✅ start tracking
                 else
                     activeDropdownPanel = nil
+                    StopTrackingPosition()  -- ✅ stop tracking
                     Tween(panel, {Size = GetPanelSize(0)}, 0.2)
                     Tween(arrowFrame, {Rotation = 0}, 0.2)
                     task.delay(0.2, function() panel.Visible = false end)
