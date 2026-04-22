@@ -1442,6 +1442,7 @@ function GluttonyUI:CreateWindow(options)
         function Tab:AddDropdown(labelText, options, callback)
             local order = NextOrder()
             local isOpen = false
+            local syncConn = nil
 
             local saved = StateStore[labelText]
             local selected = nil
@@ -1458,7 +1459,7 @@ function GluttonyUI:CreateWindow(options)
             row.BorderSizePixel = 0
             row.LayoutOrder = order
             row.ZIndex = 6
-            row.ClipsDescendants = false -- Crucial: allow dropdown to show outside the row
+            row.ClipsDescendants = false
             row.Parent = page
             Corner(row, Theme.CornerRadius)
 
@@ -1532,17 +1533,21 @@ function GluttonyUI:CreateWindow(options)
             ddClick.ZIndex = 10
             ddClick.Parent = ddBtn
 
-            -- FIX: Parent to 'page' instead of screenGui for perfect scrolling & clipping
+            -- Parent to 'inner' so it:
+            -- 1. Clips to the main window bounds (no going off screen)
+            -- 2. Renders above ALL page content (high ZIndex)
+            -- 3. Is unaffected by page scrolling (we handle position manually)
             local panel = Instance.new("ScrollingFrame")
             panel.Size = UDim2.new(0, 180, 0, 0)
+            panel.Position = UDim2.new(0, 0, 0, 0)
             panel.BackgroundColor3 = Theme.DropdownBg
             panel.BorderSizePixel = 0
             panel.ClipsDescendants = true
             panel.ScrollBarThickness = 3
             panel.ScrollBarImageColor3 = Theme.Accent
-            panel.ZIndex = 100 
+            panel.ZIndex = 200
             panel.Visible = false
-            panel.Parent = page -- This ensures it scrolls WITH the page perfectly
+            panel.Parent = inner  -- Key change: parent to inner, not page or screenGui
             Corner(panel, UDim.new(0, 6))
             Stroke(panel, Theme.Accent, 1, 0.6)
 
@@ -1551,11 +1556,82 @@ function GluttonyUI:CreateWindow(options)
 
             ConfigManager:RegisterUpdater(labelText, function(val)
                 if type(val) == "string" then
-                    selected = val
-                    ddLabel.Text = val
-                    ddLabel.TextColor3 = Theme.Text
+                    local valid = false
+                    for _, opt in ipairs(options) do
+                        if opt == val then valid = true; break end
+                    end
+                    if valid then
+                        selected = val
+                        ddLabel.Text = val
+                        ddLabel.TextColor3 = Theme.Text
+                    end
                 end
             end)
+
+            -- Converts a button's absolute screen position into a position
+            -- relative to 'inner', which is what the panel needs since it's
+            -- parented to inner.
+            local function GetPanelPosition()
+                local btnAbs = ddBtn.AbsolutePosition
+                local btnSize = ddBtn.AbsoluteSize
+                local innerAbs = inner.AbsolutePosition
+
+                local relX = btnAbs.X - innerAbs.X
+                local relY = btnAbs.Y - innerAbs.Y + btnSize.Y + 4
+
+                -- Clamp so panel never goes below the window bottom
+                local innerH = inner.AbsoluteSize.Y
+                local panelH = panel.AbsoluteSize.Y
+                if relY + panelH > innerH then
+                    -- Flip above the button instead
+                    relY = (btnAbs.Y - innerAbs.Y) - panelH - 4
+                end
+
+                return UDim2.new(0, relX, 0, relY)
+            end
+
+            local function StopSync()
+                if syncConn then
+                    syncConn:Disconnect()
+                    syncConn = nil
+                end
+            end
+
+            local function StartSync()
+                StopSync()
+                syncConn = RunService.RenderStepped:Connect(function()
+                    if not isOpen or not panel.Visible then
+                        StopSync()
+                        return
+                    end
+                    -- Check if the ddBtn has scrolled outside the visible content area
+                    local btnAbs = ddBtn.AbsolutePosition
+                    local btnSize = ddBtn.AbsoluteSize
+                    local contentAbs = content.AbsolutePosition
+                    local contentSize = content.AbsoluteSize
+
+                    local scrolledOut = (btnAbs.Y + btnSize.Y < contentAbs.Y)
+                                    or (btnAbs.Y > contentAbs.Y + contentSize.Y)
+
+                    if scrolledOut then
+                        panel.Visible = false
+                    else
+                        panel.Visible = true
+                        panel.Position = GetPanelPosition()
+                    end
+                end)
+            end
+
+            local function ClosePanel()
+                isOpen = false
+                activeDropdownPanel = nil
+                StopSync()
+                Tween(panel, {Size = UDim2.new(0, 180, 0, 0)}, 0.2)
+                Tween(arrowFrame, {Rotation = 0}, 0.2)
+                task.delay(0.21, function()
+                    if not isOpen then panel.Visible = false end
+                end)
+            end
 
             local function BuildOptions()
                 for _, child in pairs(panel:GetChildren()) do
@@ -1572,20 +1648,26 @@ function GluttonyUI:CreateWindow(options)
                     optBtn.BorderSizePixel = 0
                     optBtn.AutoButtonColor = false
                     optBtn.LayoutOrder = i
-                    optBtn.ZIndex = 101
+                    optBtn.ZIndex = 201
                     optBtn.Parent = panel
                     Corner(optBtn, UDim.new(0, 5))
 
+                    AddConnection(optBtn.MouseEnter:Connect(function()
+                        if selected ~= opt then
+                            Tween(optBtn, {BackgroundColor3 = Theme.DropdownHover}, 0.1)
+                        end
+                    end))
+                    AddConnection(optBtn.MouseLeave:Connect(function()
+                        if selected ~= opt then
+                            Tween(optBtn, {BackgroundColor3 = Theme.DropdownBg}, 0.1)
+                        end
+                    end))
                     AddConnection(optBtn.MouseButton1Click:Connect(function()
                         selected = opt
                         ConfigManager:Set(labelText, opt)
                         ddLabel.Text = opt
                         ddLabel.TextColor3 = Theme.Text
-                        isOpen = false
-                        activeDropdownPanel = nil
-                        Tween(panel, {Size = UDim2.new(0, 180, 0, 0)}, 0.2)
-                        Tween(arrowFrame, {Rotation = 0}, 0.2)
-                        task.delay(0.2, function() panel.Visible = false end)
+                        ClosePanel()
                         if callback then task.spawn(callback, opt) end
                     end))
                 end
@@ -1595,7 +1677,9 @@ function GluttonyUI:CreateWindow(options)
 
             AddConnection(ddClick.MouseButton1Click:Connect(function()
                 isOpen = not isOpen
+
                 if isOpen then
+                    -- Close any other open dropdown
                     if activeDropdownPanel and activeDropdownPanel ~= panel then
                         activeDropdownPanel.Visible = false
                         activeDropdownPanel.Size = UDim2.new(0, 180, 0, 0)
@@ -1603,31 +1687,18 @@ function GluttonyUI:CreateWindow(options)
                     activeDropdownPanel = panel
 
                     local targetH = BuildOptions()
-                    
-                    -- POSITIONING MATH:
-                    -- Since the panel is a child of the ScrollingFrame, we just need to 
-                    -- find the button's position relative to the ScrollingFrame (page).
-                    local relativeX = ddBtn.AbsolutePosition.X - page.AbsolutePosition.X
-                    local relativeY = ddBtn.AbsolutePosition.Y - page.AbsolutePosition.Y + page.CanvasPosition.Y
-                    
-                    panel.Position = UDim2.new(0, relativeX, 0, relativeY + ddBtn.AbsoluteSize.Y + 4)
+
+                    -- Set size to 0 first so tween works correctly
+                    panel.Size = UDim2.new(0, 180, 0, 0)
+                    panel.Position = GetPanelPosition()
                     panel.Visible = true
-                    
+
                     Tween(panel, {Size = UDim2.new(0, 180, 0, targetH)}, 0.25)
                     Tween(arrowFrame, {Rotation = 180}, 0.25)
 
-                    -- Heartbeat to keep sync if the Main Window moves while open
-                    local syncConn; syncConn = RunService.RenderStepped:Connect(function()
-                        if not isOpen or not panel.Visible then syncConn:Disconnect() return end
-                        local curX = ddBtn.AbsolutePosition.X - page.AbsolutePosition.X
-                        local curY = ddBtn.AbsolutePosition.Y - page.AbsolutePosition.Y + page.CanvasPosition.Y
-                        panel.Position = UDim2.new(0, curX, 0, curY + ddBtn.AbsoluteSize.Y + 4)
-                    end)
+                    StartSync()
                 else
-                    activeDropdownPanel = nil
-                    Tween(panel, {Size = UDim2.new(0, 180, 0, 0)}, 0.2)
-                    Tween(arrowFrame, {Rotation = 0}, 0.2)
-                    task.delay(0.2, function() panel.Visible = false end)
+                    ClosePanel()
                 end
             end))
 
