@@ -474,159 +474,34 @@ local function CreateTabIcon(parent, iconType)
     container.ZIndex = 9
     container.Parent = parent
 
-    if iconType == "circle" then
-        -- Bullseye: outer ring + inner dot
-        local outer = Instance.new("Frame")
-        outer.Size = UDim2.new(0, 16, 0, 16)
-        outer.AnchorPoint = Vector2.new(0.5, 0.5)
-        outer.Position = UDim2.new(0.5, 0, 0.5, 0)
-        outer.BackgroundColor3 = Theme.Accent
-        outer.BackgroundTransparency = 0.6
-        outer.BorderSizePixel = 0
-        outer.ZIndex = 10
-        outer.Parent = container
-        Corner(outer, UDim.new(1, 0))
+    -- Use clean text-based icons (Roblox supported characters)
+    local iconMap = {
+        ["circle"]    = "●",   -- filled circle
+        ["square"]    = "■",   -- filled square  
+        ["diamond"]   = "◆",   -- filled diamond
+        ["bars"]      = "≡",   -- triple bar / hamburger
+        ["triangle"]  = "▶",   -- play/arrow
+        ["dot-grid"]  = "⊞",   -- grid
+        ["settings"]  = "⚙",   -- gear (used internally)
+        ["bolt"]      = "⚡",  -- lightning bolt
+        ["shield"]    = "⛨",   -- shield
+        ["star"]      = "★",   -- star
+    }
 
-        local mid = Instance.new("Frame")
-        mid.Size = UDim2.new(0, 10, 0, 10)
-        mid.AnchorPoint = Vector2.new(0.5, 0.5)
-        mid.Position = UDim2.new(0.5, 0, 0.5, 0)
-        mid.BackgroundColor3 = Theme.Accent
-        mid.BackgroundTransparency = 0.3
-        mid.BorderSizePixel = 0
-        mid.ZIndex = 11
-        mid.Parent = container
-        Corner(mid, UDim.new(1, 0))
+    local icon = iconMap[iconType] or "●"
 
-        local core = Instance.new("Frame")
-        core.Size = UDim2.new(0, 4, 0, 4)
-        core.AnchorPoint = Vector2.new(0.5, 0.5)
-        core.Position = UDim2.new(0.5, 0, 0.5, 0)
-        core.BackgroundColor3 = Theme.Accent
-        core.BorderSizePixel = 0
-        core.ZIndex = 12
-        core.Parent = container
-        Corner(core, UDim.new(1, 0))
-
-    elseif iconType == "square" then
-        -- Layered squares (depth effect)
-        local back = Instance.new("Frame")
-        back.Size = UDim2.new(0, 12, 0, 12)
-        back.Position = UDim2.new(0.5, -4, 0.5, -4)
-        back.BackgroundColor3 = Theme.Accent
-        back.BackgroundTransparency = 0.6
-        back.BorderSizePixel = 0
-        back.ZIndex = 10
-        back.Parent = container
-        Corner(back, UDim.new(0, 3))
-
-        local front = Instance.new("Frame")
-        front.Size = UDim2.new(0, 10, 0, 10)
-        front.Position = UDim2.new(0.5, -7, 0.5, -7)
-        front.BackgroundColor3 = Theme.Accent
-        front.BackgroundTransparency = 0.15
-        front.BorderSizePixel = 0
-        front.ZIndex = 11
-        front.Parent = container
-        Corner(front, UDim.new(0, 3))
-
-    elseif iconType == "diamond" then
-        -- Diamond with inner glow
-        local d = Instance.new("Frame")
-        d.Size = UDim2.new(0, 13, 0, 13)
-        d.AnchorPoint = Vector2.new(0.5, 0.5)
-        d.Position = UDim2.new(0.5, 0, 0.5, 0)
-        d.BackgroundColor3 = Theme.Accent
-        d.BackgroundTransparency = 0.4
-        d.Rotation = 45
-        d.BorderSizePixel = 0
-        d.ZIndex = 10
-        d.Parent = container
-        Corner(d, UDim.new(0, 2))
-
-        local dInner = Instance.new("Frame")
-        dInner.Size = UDim2.new(0, 7, 0, 7)
-        dInner.AnchorPoint = Vector2.new(0.5, 0.5)
-        dInner.Position = UDim2.new(0.5, 0, 0.5, 0)
-        dInner.BackgroundColor3 = Theme.Accent
-        dInner.BackgroundTransparency = 0
-        dInner.Rotation = 45
-        dInner.BorderSizePixel = 0
-        dInner.ZIndex = 11
-        dInner.Parent = container
-        Corner(dInner, UDim.new(0, 1))
-
-    elseif iconType == "bars" then
-        -- Staggered signal bars (like wifi strength)
-        local widths = {6, 10, 14}
-        for i = 0, 2 do
-            local b = Instance.new("Frame")
-            b.Size = UDim2.new(0, widths[i+1], 0, 3)
-            b.Position = UDim2.new(0, 3, 0, 3 + (i * 6))
-            b.BackgroundColor3 = Theme.Accent
-            b.BackgroundTransparency = 0.15 + (0.2 * (2 - i))
-            b.BorderSizePixel = 0
-            b.ZIndex = 10
-            b.Parent = container
-            Corner(b, UDim.new(1, 0))
-        end
-
-    elseif iconType == "triangle" then
-        -- Arrow/chevron pointing right
-        local line1 = Instance.new("Frame")
-        line1.Size = UDim2.new(0, 10, 0, 3)
-        line1.AnchorPoint = Vector2.new(0, 0.5)
-        line1.Position = UDim2.new(0.2, 0, 0.5, -3)
-        line1.BackgroundColor3 = Theme.Accent
-        line1.BackgroundTransparency = 0.2
-        line1.Rotation = 35
-        line1.BorderSizePixel = 0
-        line1.ZIndex = 10
-        line1.Parent = container
-        Corner(line1, UDim.new(1, 0))
-
-        local line2 = Instance.new("Frame")
-        line2.Size = UDim2.new(0, 10, 0, 3)
-        line2.AnchorPoint = Vector2.new(0, 0.5)
-        line2.Position = UDim2.new(0.2, 0, 0.5, 3)
-        line2.BackgroundColor3 = Theme.Accent
-        line2.BackgroundTransparency = 0.2
-        line2.Rotation = -35
-        line2.BorderSizePixel = 0
-        line2.ZIndex = 10
-        line2.Parent = container
-        Corner(line2, UDim.new(1, 0))
-
-    elseif iconType == "dot-grid" then
-        -- 3x3 grid with center highlight
-        for row = 0, 2 do
-            for col = 0, 2 do
-                local isCenter = (row == 1 and col == 1)
-                local d = Instance.new("Frame")
-                d.Size = UDim2.new(0, isCenter and 5 or 3, 0, isCenter and 5 or 3)
-                d.Position = UDim2.new(0, 2 + col * 7, 0, 2 + row * 7)
-                d.BackgroundColor3 = Theme.Accent
-                d.BackgroundTransparency = isCenter and 0 or 0.5
-                d.BorderSizePixel = 0
-                d.ZIndex = 10
-                d.Parent = container
-                Corner(d, UDim.new(1, 0))
-            end
-        end
-
-    else
-        local d = Instance.new("Frame")
-        d.Size = UDim2.new(0, 10, 0, 10)
-        d.AnchorPoint = Vector2.new(0.5, 0.5)
-        d.Position = UDim2.new(0.5, 0, 0.5, 0)
-        d.BackgroundColor3 = Theme.Accent
-        d.BackgroundTransparency = 0.2
-        d.BorderSizePixel = 0
-        d.ZIndex = 10
-        d.Parent = container
-        Corner(d, UDim.new(1, 0))
-    end
+    local iconLabel = Instance.new("TextLabel")
+    iconLabel.Size = UDim2.new(1, 0, 1, 0)
+    iconLabel.BackgroundTransparency = 1
+    iconLabel.Text = icon
+    iconLabel.TextColor3 = Theme.Accent
+    iconLabel.TextSize = 16
+    iconLabel.Font = Enum.Font.GothamBold
+    iconLabel.ZIndex = 10
+    iconLabel.Parent = container
 end
+
+local IconTypes = {"circle", "square", "diamond", "bars", "triangle", "dot-grid", "bolt", "star", "shield"}
 
 local IconTypes = {"circle", "square", "diamond", "bars", "triangle", "dot-grid"}
 
@@ -910,7 +785,16 @@ function GluttonyUI:CreateWindow(options)
     Window._currentTab = nil
     Window._tabCount   = 0
 
+    local activeDropdownPanel = nil -- track open dropdown
+
     local function SwitchTab(tabName)
+        -- Close any open dropdown
+        if activeDropdownPanel and activeDropdownPanel.Parent then
+            activeDropdownPanel.Visible = false
+            activeDropdownPanel.Size = UDim2.new(0, 180, 0, 0)
+            activeDropdownPanel = nil
+        end
+
         Window._currentTab = tabName
         for name, pg in pairs(Window._pages) do
             pg.Visible = (name == tabName)
@@ -1704,9 +1588,14 @@ function GluttonyUI:CreateWindow(options)
             AddConnection(ddClick.MouseButton1Click:Connect(function()
                 isOpen = not isOpen
                 if isOpen then
+                    -- Close previous dropdown if any
+                    if activeDropdownPanel and activeDropdownPanel ~= panel and activeDropdownPanel.Parent then
+                        activeDropdownPanel.Visible = false
+                        activeDropdownPanel.Size = UDim2.new(0, 180, 0, 0)
+                    end
+                    activeDropdownPanel = panel
+
                     local targetH = BuildOptions()
-                    
-                    -- Position panel relative to the dropdown button
                     local absPos = ddBtn.AbsolutePosition
                     local absSize = ddBtn.AbsoluteSize
                     local contentPos = content.AbsolutePosition
@@ -1718,6 +1607,7 @@ function GluttonyUI:CreateWindow(options)
                     Tween(panel, {Size = UDim2.new(0, 180, 0, targetH)}, 0.25, Enum.EasingStyle.Quart)
                     Tween(arrow, {Rotation = 180}, 0.25)
                 else
+                    activeDropdownPanel = nil
                     Tween(panel, {Size = UDim2.new(0, 180, 0, 0)}, 0.2)
                     Tween(arrow, {Rotation = 0}, 0.2)
                     task.delay(0.2, function() panel.Visible = false end)
@@ -1888,36 +1778,23 @@ function GluttonyUI:CreateWindow(options)
         settingsIndicator.Parent = settingsBtn
         Corner(settingsIndicator, UDim.new(1, 0))
 
-        -- Gear icon (clean geometric)
-        local gearContainer = Instance.new("Frame")
-        gearContainer.Size = UDim2.new(0, 20, 0, 20)
-        gearContainer.Position = UDim2.new(0, 18, 0.5, -10)
-        gearContainer.BackgroundTransparency = 1
-        gearContainer.ZIndex = 9
-        gearContainer.Parent = settingsBtn
+        -- Settings icon
+        local settingsIconContainer = Instance.new("Frame")
+        settingsIconContainer.Size = UDim2.new(0, 20, 0, 20)
+        settingsIconContainer.Position = UDim2.new(0, 18, 0.5, -10)
+        settingsIconContainer.BackgroundTransparency = 1
+        settingsIconContainer.ZIndex = 9
+        settingsIconContainer.Parent = settingsBtn
 
-        -- Outer gear ring
-        local gearOuter = Instance.new("Frame")
-        gearOuter.Size = UDim2.new(0, 14, 0, 14)
-        gearOuter.AnchorPoint = Vector2.new(0.5, 0.5)
-        gearOuter.Position = UDim2.new(0.5, 0, 0.5, 0)
-        gearOuter.BackgroundColor3 = Theme.Accent
-        gearOuter.BackgroundTransparency = 0.3
-        gearOuter.BorderSizePixel = 0
-        gearOuter.ZIndex = 10
-        gearOuter.Parent = gearContainer
-        Corner(gearOuter, UDim.new(1, 0))
-
-        -- Inner cutout
-        local gearInner = Instance.new("Frame")
-        gearInner.Size = UDim2.new(0, 6, 0, 6)
-        gearInner.AnchorPoint = Vector2.new(0.5, 0.5)
-        gearInner.Position = UDim2.new(0.5, 0, 0.5, 0)
-        gearInner.BackgroundColor3 = Theme.Sidebar
-        gearInner.BorderSizePixel = 0
-        gearInner.ZIndex = 11
-        gearInner.Parent = gearContainer
-        Corner(gearInner, UDim.new(1, 0))
+        local settingsIcon = Instance.new("TextLabel")
+        settingsIcon.Size = UDim2.new(1, 0, 1, 0)
+        settingsIcon.BackgroundTransparency = 1
+        settingsIcon.Text = "⚙"
+        settingsIcon.TextColor3 = Theme.Accent
+        settingsIcon.TextSize = 16
+        settingsIcon.Font = Enum.Font.GothamBold
+        settingsIcon.ZIndex = 10
+        settingsIcon.Parent = settingsIconContainer
 
         local settingsLabel = Instance.new("TextLabel")
         settingsLabel.Name = "Label"
@@ -2193,6 +2070,14 @@ function GluttonyUI:CreateWindow(options)
 
         SetupHover(opacityRow, RowColor(opacityOrder), opacityAccent)
         ApplyOpacity(opacityValue)
+        
+        -- ── SPACER between sections ──────────────────────────
+        local spacerOrder = NextSettingsOrder()
+        local spacer = Instance.new("Frame")
+        spacer.Size = UDim2.new(1, 0, 0, 20)
+        spacer.BackgroundTransparency = 1
+        spacer.LayoutOrder = spacerOrder
+        spacer.Parent = page
 
         -- ══════════════════════════════════════════════════════
         -- SECTION: COMMUNITY
