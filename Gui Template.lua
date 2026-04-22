@@ -1789,6 +1789,645 @@ function GluttonyUI:CreateWindow(options)
         ConfigManager:ApplyToUI()
     end)
 
+    -- ════════════════════════════════════════════════════════
+    -- AUTO SETTINGS TAB (always last)
+    -- ════════════════════════════════════════════════════════
+
+    local function BuildSettingsTab()
+        local settingsOrder = 999 -- ensures it's always last in sidebar
+
+        local settingsBtn = Instance.new("TextButton")
+        settingsBtn.Name = "Tab_Settings"
+        settingsBtn.Size = UDim2.new(1, -14, 0, 42)
+        settingsBtn.BackgroundColor3 = Theme.Sidebar
+        settingsBtn.BorderSizePixel = 0
+        settingsBtn.Text = ""
+        settingsBtn.AutoButtonColor = false
+        settingsBtn.LayoutOrder = settingsOrder
+        settingsBtn.ZIndex = 7
+        settingsBtn.Parent = tabContainer
+        Corner(settingsBtn, Theme.CornerRadius)
+
+        local settingsIndicator = Instance.new("Frame")
+        settingsIndicator.Name = "Indicator"
+        settingsIndicator.Size = UDim2.new(0, 4, 0, 22)
+        settingsIndicator.Position = UDim2.new(0, 5, 0.5, -11)
+        settingsIndicator.BackgroundColor3 = Theme.Accent
+        settingsIndicator.BackgroundTransparency = 1
+        settingsIndicator.BorderSizePixel = 0
+        settingsIndicator.ZIndex = 8
+        settingsIndicator.Parent = settingsBtn
+        Corner(settingsIndicator, UDim.new(1, 0))
+
+        -- Gear icon (clean geometric)
+        local gearContainer = Instance.new("Frame")
+        gearContainer.Size = UDim2.new(0, 20, 0, 20)
+        gearContainer.Position = UDim2.new(0, 18, 0.5, -10)
+        gearContainer.BackgroundTransparency = 1
+        gearContainer.ZIndex = 9
+        gearContainer.Parent = settingsBtn
+
+        -- Outer gear ring
+        local gearOuter = Instance.new("Frame")
+        gearOuter.Size = UDim2.new(0, 14, 0, 14)
+        gearOuter.AnchorPoint = Vector2.new(0.5, 0.5)
+        gearOuter.Position = UDim2.new(0.5, 0, 0.5, 0)
+        gearOuter.BackgroundColor3 = Theme.Accent
+        gearOuter.BackgroundTransparency = 0.3
+        gearOuter.BorderSizePixel = 0
+        gearOuter.ZIndex = 10
+        gearOuter.Parent = gearContainer
+        Corner(gearOuter, UDim.new(1, 0))
+
+        -- Inner cutout
+        local gearInner = Instance.new("Frame")
+        gearInner.Size = UDim2.new(0, 6, 0, 6)
+        gearInner.AnchorPoint = Vector2.new(0.5, 0.5)
+        gearInner.Position = UDim2.new(0.5, 0, 0.5, 0)
+        gearInner.BackgroundColor3 = Theme.Sidebar
+        gearInner.BorderSizePixel = 0
+        gearInner.ZIndex = 11
+        gearInner.Parent = gearContainer
+        Corner(gearInner, UDim.new(1, 0))
+
+        local settingsLabel = Instance.new("TextLabel")
+        settingsLabel.Name = "Label"
+        settingsLabel.Size = UDim2.new(1, -52, 1, 0)
+        settingsLabel.Position = UDim2.new(0, 44, 0, 0)
+        settingsLabel.BackgroundTransparency = 1
+        settingsLabel.Text = "Settings"
+        settingsLabel.TextColor3 = Theme.TextDim
+        settingsLabel.TextSize = 14
+        settingsLabel.Font = Theme.FontLight
+        settingsLabel.TextXAlignment = Enum.TextXAlignment.Left
+        settingsLabel.ZIndex = 8
+        settingsLabel.Parent = settingsBtn
+
+        -- Hover
+        AddConnection(settingsBtn.MouseEnter:Connect(function()
+            if Window._currentTab ~= "Settings" then
+                Tween(settingsBtn, {BackgroundColor3 = Theme.Hover}, 0.15)
+                Tween(settingsLabel, {TextColor3 = Theme.Text}, 0.15)
+            end
+        end))
+        AddConnection(settingsBtn.MouseLeave:Connect(function()
+            if Window._currentTab ~= "Settings" then
+                Tween(settingsBtn, {BackgroundColor3 = Theme.Sidebar}, 0.15)
+                Tween(settingsLabel, {TextColor3 = Theme.TextDim}, 0.15)
+            end
+        end))
+        AddConnection(settingsBtn.MouseButton1Click:Connect(function()
+            SwitchTab("Settings")
+        end))
+
+        Window._tabButtons["Settings"] = settingsBtn
+
+        -- ── SETTINGS PAGE ────────────────────────────────────
+        local page = Instance.new("ScrollingFrame")
+        page.Name = "Page_Settings"
+        page.Size = UDim2.new(1, 0, 1, 0)
+        page.BackgroundTransparency = 1
+        page.BorderSizePixel = 0
+        page.ScrollBarThickness = 4
+        page.ScrollBarImageColor3 = Theme.Accent
+        page.ScrollBarImageTransparency = 0.3
+        page.CanvasSize = UDim2.new(0, 0, 0, 0)
+        page.Visible = false
+        page.ZIndex = 6
+        page.Parent = content
+        Padding(page, 18, 18, 22, 22)
+
+        local pageLayout = ListLayout(page, 8)
+
+        AddConnection(pageLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+            page.CanvasSize = UDim2.new(0, 0, 0, pageLayout.AbsoluteContentSize.Y + 40)
+        end))
+
+        Window._pages["Settings"] = page
+
+        -- ── PAGE TITLE ───────────────────────────────────────
+        local titleFrame = Instance.new("Frame")
+        titleFrame.Size = UDim2.new(1, 0, 0, 42)
+        titleFrame.BackgroundTransparency = 1
+        titleFrame.LayoutOrder = 0
+        titleFrame.ZIndex = 7
+        titleFrame.Parent = page
+
+        local pageTitleLabel = Instance.new("TextLabel")
+        pageTitleLabel.Size = UDim2.new(1, 0, 0, 34)
+        pageTitleLabel.BackgroundTransparency = 1
+        pageTitleLabel.Text = "Settings"
+        pageTitleLabel.TextColor3 = Theme.Text
+        pageTitleLabel.TextSize = 24
+        pageTitleLabel.Font = Theme.Font
+        pageTitleLabel.TextXAlignment = Enum.TextXAlignment.Left
+        pageTitleLabel.ZIndex = 7
+        pageTitleLabel.Parent = titleFrame
+
+        local underline = Instance.new("Frame")
+        underline.Size = UDim2.new(0.25, 0, 0, 2)
+        underline.Position = UDim2.new(0, 0, 1, -2)
+        underline.BackgroundColor3 = Theme.Accent
+        underline.BackgroundTransparency = 0.3
+        underline.BorderSizePixel = 0
+        underline.ZIndex = 8
+        underline.Parent = titleFrame
+        Corner(underline, UDim.new(1, 0))
+
+        local ulGrad = Instance.new("UIGradient")
+        ulGrad.Transparency = NumberSequence.new({
+            NumberSequenceKeypoint.new(0, 0),
+            NumberSequenceKeypoint.new(0.7, 0),
+            NumberSequenceKeypoint.new(1, 1),
+        })
+        ulGrad.Parent = underline
+
+        local layoutOrder = 0
+        local function NextSettingsOrder()
+            layoutOrder = layoutOrder + 1
+            return layoutOrder
+        end
+
+        -- ══════════════════════════════════════════════════════
+        -- SECTION: INTERFACE
+        -- ══════════════════════════════════════════════════════
+
+        local ifaceSectionOrder = NextSettingsOrder()
+        local ifaceLabel = Instance.new("TextLabel")
+        ifaceLabel.Size = UDim2.new(1, 0, 0, 30)
+        ifaceLabel.BackgroundTransparency = 1
+        ifaceLabel.Text = "Interface"
+        ifaceLabel.TextColor3 = Theme.Accent
+        ifaceLabel.TextSize = 15
+        ifaceLabel.Font = Theme.Font
+        ifaceLabel.TextXAlignment = Enum.TextXAlignment.Left
+        ifaceLabel.LayoutOrder = ifaceSectionOrder
+        ifaceLabel.ZIndex = 7
+        ifaceLabel.Parent = page
+
+        -- Section separator
+        local ifaceSepContainer = Instance.new("Frame")
+        ifaceSepContainer.Size = UDim2.new(1, 0, 0, 8)
+        ifaceSepContainer.BackgroundTransparency = 1
+        ifaceSepContainer.LayoutOrder = ifaceSectionOrder + 0.5
+        ifaceSepContainer.Parent = page
+
+        local ifaceSep = Instance.new("Frame")
+        ifaceSep.Size = UDim2.new(0.4, 0, 0, 1)
+        ifaceSep.Position = UDim2.new(0, 0, 0.5, 0)
+        ifaceSep.BackgroundColor3 = Theme.Accent
+        ifaceSep.BackgroundTransparency = 0.5
+        ifaceSep.BorderSizePixel = 0
+        ifaceSep.ZIndex = 7
+        ifaceSep.Parent = ifaceSepContainer
+        Corner(ifaceSep, UDim.new(1, 0))
+
+        local ifaceSepGrad = Instance.new("UIGradient")
+        ifaceSepGrad.Transparency = NumberSequence.new({
+            NumberSequenceKeypoint.new(0, 0),
+            NumberSequenceKeypoint.new(0.5, 0.3),
+            NumberSequenceKeypoint.new(1, 1),
+        })
+        ifaceSepGrad.Parent = ifaceSep
+
+        -- ── OPACITY SLIDER ───────────────────────────────────
+        local opacityOrder = NextSettingsOrder()
+        local opacityValue = StateStore["GUI Opacity"] or 100
+
+        local opacityRow = Instance.new("Frame")
+        opacityRow.Size = UDim2.new(1, 0, 0, Theme.RowHeight + 4)
+        opacityRow.BackgroundColor3 = RowColor(opacityOrder)
+        opacityRow.BorderSizePixel = 0
+        opacityRow.LayoutOrder = opacityOrder
+        opacityRow.ZIndex = 6
+        opacityRow.ClipsDescendants = true
+        opacityRow.Parent = page
+        Corner(opacityRow, Theme.CornerRadius)
+
+        local opacityAccent = HoverAccent(opacityRow)
+
+        local opacityLabel = Instance.new("TextLabel")
+        opacityLabel.Size = UDim2.new(0, 170, 1, 0)
+        opacityLabel.Position = UDim2.new(0, 18, 0, 0)
+        opacityLabel.BackgroundTransparency = 1
+        opacityLabel.Text = "GUI Opacity"
+        opacityLabel.TextColor3 = Theme.Text
+        opacityLabel.TextSize = 14
+        opacityLabel.Font = Theme.FontLight
+        opacityLabel.TextXAlignment = Enum.TextXAlignment.Left
+        opacityLabel.ZIndex = 7
+        opacityLabel.Parent = opacityRow
+
+        local opacityBadge = Instance.new("Frame")
+        opacityBadge.Size = UDim2.new(0, 42, 0, 22)
+        opacityBadge.Position = UDim2.new(1, -158, 0.5, -11)
+        opacityBadge.BackgroundColor3 = Theme.Accent
+        opacityBadge.BackgroundTransparency = 0.85
+        opacityBadge.BorderSizePixel = 0
+        opacityBadge.ZIndex = 7
+        opacityBadge.Parent = opacityRow
+        Corner(opacityBadge, UDim.new(0, 5))
+
+        local opacityValueLabel = Instance.new("TextLabel")
+        opacityValueLabel.Size = UDim2.new(1, 0, 1, 0)
+        opacityValueLabel.BackgroundTransparency = 1
+        opacityValueLabel.Text = tostring(math.floor(opacityValue))
+        opacityValueLabel.TextColor3 = Theme.Accent
+        opacityValueLabel.TextSize = 13
+        opacityValueLabel.Font = Theme.Font
+        opacityValueLabel.ZIndex = 8
+        opacityValueLabel.Parent = opacityBadge
+
+        local opacityTrack = Instance.new("Frame")
+        opacityTrack.Size = UDim2.new(0, 100, 0, 6)
+        opacityTrack.Position = UDim2.new(1, -112, 0.5, -3)
+        opacityTrack.BackgroundColor3 = Theme.SliderBg
+        opacityTrack.BorderSizePixel = 0
+        opacityTrack.ZIndex = 8
+        opacityTrack.Parent = opacityRow
+        Corner(opacityTrack, UDim.new(1, 0))
+
+        local opPct = (opacityValue - 10) / 90
+
+        local opacityFill = Instance.new("Frame")
+        opacityFill.Size = UDim2.new(opPct, 0, 1, 0)
+        opacityFill.BackgroundColor3 = Theme.SliderFill
+        opacityFill.BorderSizePixel = 0
+        opacityFill.ZIndex = 9
+        opacityFill.Parent = opacityTrack
+        Corner(opacityFill, UDim.new(1, 0))
+
+        local opacityKnob = Instance.new("Frame")
+        opacityKnob.Size = UDim2.new(0, 16, 0, 16)
+        opacityKnob.Position = UDim2.new(opPct, -8, 0.5, -8)
+        opacityKnob.BackgroundColor3 = Theme.Text
+        opacityKnob.BorderSizePixel = 0
+        opacityKnob.ZIndex = 10
+        opacityKnob.Parent = opacityTrack
+        Corner(opacityKnob, UDim.new(1, 0))
+        Stroke(opacityKnob, Theme.Shadow, 1, 0.75)
+
+        local opSliding = false
+        local opHitArea = Instance.new("TextButton")
+        opHitArea.Size = UDim2.new(1, 14, 1, 18)
+        opHitArea.Position = UDim2.new(0, -7, 0, -9)
+        opHitArea.BackgroundTransparency = 1
+        opHitArea.Text = ""
+        opHitArea.ZIndex = 11
+        opHitArea.Parent = opacityTrack
+
+        local function ApplyOpacity(val)
+            local t = 1 - (val / 100)
+            main.BackgroundTransparency = t
+        end
+
+        local function UpdateOpacity(input)
+            local x = math.clamp((input.Position.X - opacityTrack.AbsolutePosition.X) / opacityTrack.AbsoluteSize.X, 0, 1)
+            local v = math.floor(10 + 90 * x)
+            opacityValue = v
+            ConfigManager:Set("GUI Opacity", v)
+            opacityValueLabel.Text = tostring(v)
+            opacityFill.Size = UDim2.new(x, 0, 1, 0)
+            opacityKnob.Position = UDim2.new(x, -8, 0.5, -8)
+            ApplyOpacity(v)
+        end
+
+        AddConnection(opHitArea.InputBegan:Connect(function(input)
+            if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+                opSliding = true
+                UpdateOpacity(input)
+            end
+        end))
+        AddConnection(opHitArea.InputEnded:Connect(function(input)
+            if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+                opSliding = false
+            end
+        end))
+        AddConnection(UserInputService.InputChanged:Connect(function(input)
+            if opSliding and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+                UpdateOpacity(input)
+            end
+        end))
+
+        SetupHover(opacityRow, RowColor(opacityOrder), opacityAccent)
+        ApplyOpacity(opacityValue)
+
+        -- ══════════════════════════════════════════════════════
+        -- SECTION: COMMUNITY
+        -- ══════════════════════════════════════════════════════
+
+        local commSectionOrder = NextSettingsOrder()
+        local commLabel = Instance.new("TextLabel")
+        commLabel.Size = UDim2.new(1, 0, 0, 30)
+        commLabel.BackgroundTransparency = 1
+        commLabel.Text = "Community"
+        commLabel.TextColor3 = Theme.Accent
+        commLabel.TextSize = 15
+        commLabel.Font = Theme.Font
+        commLabel.TextXAlignment = Enum.TextXAlignment.Left
+        commLabel.LayoutOrder = commSectionOrder
+        commLabel.ZIndex = 7
+        commLabel.Parent = page
+
+        local commSepContainer = Instance.new("Frame")
+        commSepContainer.Size = UDim2.new(1, 0, 0, 8)
+        commSepContainer.BackgroundTransparency = 1
+        commSepContainer.LayoutOrder = commSectionOrder + 0.5
+        commSepContainer.Parent = page
+
+        local commSep = Instance.new("Frame")
+        commSep.Size = UDim2.new(0.4, 0, 0, 1)
+        commSep.Position = UDim2.new(0, 0, 0.5, 0)
+        commSep.BackgroundColor3 = Theme.Accent
+        commSep.BackgroundTransparency = 0.5
+        commSep.BorderSizePixel = 0
+        commSep.ZIndex = 7
+        commSep.Parent = commSepContainer
+        Corner(commSep, UDim.new(1, 0))
+
+        local commSepGrad = Instance.new("UIGradient")
+        commSepGrad.Transparency = NumberSequence.new({
+            NumberSequenceKeypoint.new(0, 0),
+            NumberSequenceKeypoint.new(0.5, 0.3),
+            NumberSequenceKeypoint.new(1, 1),
+        })
+        commSepGrad.Parent = commSep
+
+        -- ── INFO CARD ────────────────────────────────────────
+        local infoOrder = NextSettingsOrder()
+        local infoCard = Instance.new("Frame")
+        infoCard.Size = UDim2.new(1, 0, 0, 80)
+        infoCard.BackgroundColor3 = Color3.fromRGB(28, 30, 38)
+        infoCard.BorderSizePixel = 0
+        infoCard.LayoutOrder = infoOrder
+        infoCard.ZIndex = 6
+        infoCard.Parent = page
+        Corner(infoCard, Theme.CornerRadius)
+        Stroke(infoCard, Theme.Border, 1, 0.4)
+
+        -- Left accent bar
+        local infoAccentBar = Instance.new("Frame")
+        infoAccentBar.Size = UDim2.new(0, 4, 1, -16)
+        infoAccentBar.Position = UDim2.new(0, 10, 0, 8)
+        infoAccentBar.BackgroundColor3 = Theme.Accent
+        infoAccentBar.BackgroundTransparency = 0.3
+        infoAccentBar.BorderSizePixel = 0
+        infoAccentBar.ZIndex = 7
+        infoAccentBar.Parent = infoCard
+        Corner(infoAccentBar, UDim.new(1, 0))
+
+        -- Info icon (circle with "i")
+        local infoIconBg = Instance.new("Frame")
+        infoIconBg.Size = UDim2.new(0, 28, 0, 28)
+        infoIconBg.Position = UDim2.new(0, 22, 0.5, -14)
+        infoIconBg.BackgroundColor3 = Theme.Accent
+        infoIconBg.BackgroundTransparency = 0.8
+        infoIconBg.BorderSizePixel = 0
+        infoIconBg.ZIndex = 7
+        infoIconBg.Parent = infoCard
+        Corner(infoIconBg, UDim.new(1, 0))
+
+        local infoIconDot = Instance.new("Frame")
+        infoIconDot.Size = UDim2.new(0, 4, 0, 4)
+        infoIconDot.AnchorPoint = Vector2.new(0.5, 0.5)
+        infoIconDot.Position = UDim2.new(0.5, 0, 0, 8)
+        infoIconDot.BackgroundColor3 = Theme.Accent
+        infoIconDot.BorderSizePixel = 0
+        infoIconDot.ZIndex = 8
+        infoIconDot.Parent = infoIconBg
+        Corner(infoIconDot, UDim.new(1, 0))
+
+        local infoIconLine = Instance.new("Frame")
+        infoIconLine.Size = UDim2.new(0, 3, 0, 10)
+        infoIconLine.AnchorPoint = Vector2.new(0.5, 0)
+        infoIconLine.Position = UDim2.new(0.5, 0, 0, 14)
+        infoIconLine.BackgroundColor3 = Theme.Accent
+        infoIconLine.BorderSizePixel = 0
+        infoIconLine.ZIndex = 8
+        infoIconLine.Parent = infoIconBg
+        Corner(infoIconLine, UDim.new(1, 0))
+
+        local infoText = Instance.new("TextLabel")
+        infoText.Size = UDim2.new(1, -70, 1, -20)
+        infoText.Position = UDim2.new(0, 58, 0, 10)
+        infoText.BackgroundTransparency = 1
+        infoText.Text = "Join our Discord community for updates, feature requests, bug reports, and direct support from the team."
+        infoText.TextColor3 = Theme.TextDim
+        infoText.TextSize = 13
+        infoText.Font = Theme.FontLight
+        infoText.TextXAlignment = Enum.TextXAlignment.Left
+        infoText.TextYAlignment = Enum.TextYAlignment.Center
+        infoText.TextWrapped = true
+        infoText.ZIndex = 7
+        infoText.Parent = infoCard
+
+        -- ── DISCORD BUTTON ROW ───────────────────────────────
+        local discordOrder = NextSettingsOrder()
+        local discordRow = Instance.new("Frame")
+        discordRow.Size = UDim2.new(1, 0, 0, Theme.RowHeight)
+        discordRow.BackgroundColor3 = RowColor(discordOrder)
+        discordRow.BorderSizePixel = 0
+        discordRow.LayoutOrder = discordOrder
+        discordRow.ZIndex = 6
+        discordRow.ClipsDescendants = true
+        discordRow.Parent = page
+        Corner(discordRow, Theme.CornerRadius)
+
+        local discordAccent = HoverAccent(discordRow)
+
+        local discordLabel = Instance.new("TextLabel")
+        discordLabel.Size = UDim2.new(1, -130, 1, 0)
+        discordLabel.Position = UDim2.new(0, 18, 0, 0)
+        discordLabel.BackgroundTransparency = 1
+        discordLabel.Text = "Discord Server"
+        discordLabel.TextColor3 = Theme.Text
+        discordLabel.TextSize = 14
+        discordLabel.Font = Theme.FontLight
+        discordLabel.TextXAlignment = Enum.TextXAlignment.Left
+        discordLabel.ZIndex = 7
+        discordLabel.Parent = discordRow
+
+        local discordBtnFrame = Instance.new("Frame")
+        discordBtnFrame.Size = UDim2.new(0, 100, 0, 32)
+        discordBtnFrame.Position = UDim2.new(1, -114, 0.5, -16)
+        discordBtnFrame.BackgroundTransparency = 1
+        discordBtnFrame.ZIndex = 7
+        discordBtnFrame.Parent = discordRow
+
+        local discordShadow = Instance.new("Frame")
+        discordShadow.Size = UDim2.new(1, 2, 1, 2)
+        discordShadow.Position = UDim2.new(0, -1, 0, 2)
+        discordShadow.BackgroundColor3 = Theme.Shadow
+        discordShadow.BackgroundTransparency = 0.82
+        discordShadow.BorderSizePixel = 0
+        discordShadow.ZIndex = 7
+        discordShadow.Parent = discordBtnFrame
+        Corner(discordShadow, Theme.CornerRadius)
+
+        local discordColor = Color3.fromRGB(88, 101, 242)
+        local discordHover = Color3.fromRGB(108, 121, 255)
+        local successColor = Color3.fromRGB(50, 180, 80)
+
+        local discordButton = Instance.new("TextButton")
+        discordButton.Size = UDim2.new(1, -2, 1, -2)
+        discordButton.Position = UDim2.new(0, 1, 0, 0)
+        discordButton.BackgroundColor3 = discordColor
+        discordButton.Text = "Copy Link"
+        discordButton.TextColor3 = Theme.Text
+        discordButton.TextSize = 13
+        discordButton.Font = Theme.Font
+        discordButton.BorderSizePixel = 0
+        discordButton.AutoButtonColor = false
+        discordButton.ZIndex = 8
+        discordButton.Parent = discordBtnFrame
+        Corner(discordButton, Theme.CornerRadius)
+
+        local discordGlow = Stroke(discordButton, discordColor, 1.5, 0.6)
+
+        AddConnection(discordButton.MouseEnter:Connect(function()
+            Tween(discordButton, {BackgroundColor3 = discordHover}, 0.15)
+            Tween(discordGlow, {Transparency = 0.3}, 0.2)
+            Tween(discordShadow, {BackgroundTransparency = 0.7}, 0.15)
+        end))
+        AddConnection(discordButton.MouseLeave:Connect(function()
+            Tween(discordButton, {BackgroundColor3 = discordColor}, 0.15)
+            Tween(discordGlow, {Transparency = 0.6}, 0.2)
+            Tween(discordShadow, {BackgroundTransparency = 0.82}, 0.15)
+        end))
+        AddConnection(discordButton.MouseButton1Click:Connect(function()
+            -- Press animation
+            Tween(discordButton, {Size = UDim2.new(1, -6, 1, -4)}, 0.06)
+            task.delay(0.06, function()
+                Tween(discordButton, {Size = UDim2.new(1, -2, 1, -2)}, 0.1, Enum.EasingStyle.Back)
+            end)
+
+            local discordURL = "https://discord.gg/6KmxCWU6Dc"
+            local copied = pcall(function()
+                if setclipboard then setclipboard(discordURL)
+                elseif toclipboard then toclipboard(discordURL)
+                else error("No clipboard") end
+            end)
+
+            if copied then
+                local origText = discordButton.Text
+                discordButton.Text = "Copied!"
+                Tween(discordButton, {BackgroundColor3 = successColor}, 0.2)
+                Tween(discordGlow, {Color = successColor, Transparency = 0.3}, 0.2)
+                task.delay(1.5, function()
+                    if discordButton and discordButton.Parent then
+                        discordButton.Text = origText
+                        Tween(discordButton, {BackgroundColor3 = discordColor}, 0.2)
+                        Tween(discordGlow, {Color = discordColor, Transparency = 0.6}, 0.2)
+                    end
+                end)
+            end
+        end))
+
+        SetupHover(discordRow, RowColor(discordOrder), discordAccent)
+
+        -- ══════════════════════════════════════════════════════
+        -- SECTION: ABOUT
+        -- ══════════════════════════════════════════════════════
+
+        local aboutSectionOrder = NextSettingsOrder()
+        local aboutLabel = Instance.new("TextLabel")
+        aboutLabel.Size = UDim2.new(1, 0, 0, 30)
+        aboutLabel.BackgroundTransparency = 1
+        aboutLabel.Text = "About"
+        aboutLabel.TextColor3 = Theme.Accent
+        aboutLabel.TextSize = 15
+        aboutLabel.Font = Theme.Font
+        aboutLabel.TextXAlignment = Enum.TextXAlignment.Left
+        aboutLabel.LayoutOrder = aboutSectionOrder
+        aboutLabel.ZIndex = 7
+        aboutLabel.Parent = page
+
+        local aboutSepContainer = Instance.new("Frame")
+        aboutSepContainer.Size = UDim2.new(1, 0, 0, 8)
+        aboutSepContainer.BackgroundTransparency = 1
+        aboutSepContainer.LayoutOrder = aboutSectionOrder + 0.5
+        aboutSepContainer.Parent = page
+
+        local aboutSep = Instance.new("Frame")
+        aboutSep.Size = UDim2.new(0.4, 0, 0, 1)
+        aboutSep.Position = UDim2.new(0, 0, 0.5, 0)
+        aboutSep.BackgroundColor3 = Theme.Accent
+        aboutSep.BackgroundTransparency = 0.5
+        aboutSep.BorderSizePixel = 0
+        aboutSep.ZIndex = 7
+        aboutSep.Parent = aboutSepContainer
+        Corner(aboutSep, UDim.new(1, 0))
+
+        local aboutSepGrad = Instance.new("UIGradient")
+        aboutSepGrad.Transparency = NumberSequence.new({
+            NumberSequenceKeypoint.new(0, 0),
+            NumberSequenceKeypoint.new(0.5, 0.3),
+            NumberSequenceKeypoint.new(1, 1),
+        })
+        aboutSepGrad.Parent = aboutSep
+
+        -- About card
+        local aboutOrder = NextSettingsOrder()
+        local aboutCard = Instance.new("Frame")
+        aboutCard.Size = UDim2.new(1, 0, 0, 70)
+        aboutCard.BackgroundColor3 = Color3.fromRGB(28, 30, 38)
+        aboutCard.BorderSizePixel = 0
+        aboutCard.LayoutOrder = aboutOrder
+        aboutCard.ZIndex = 6
+        aboutCard.Parent = page
+        Corner(aboutCard, Theme.CornerRadius)
+        Stroke(aboutCard, Theme.Border, 1, 0.4)
+
+        -- Accent line top
+        local aboutTopLine = Instance.new("Frame")
+        aboutTopLine.Size = UDim2.new(1, -20, 0, 1)
+        aboutTopLine.Position = UDim2.new(0, 10, 0, 0)
+        aboutTopLine.BackgroundColor3 = Theme.Accent
+        aboutTopLine.BackgroundTransparency = 0.7
+        aboutTopLine.BorderSizePixel = 0
+        aboutTopLine.ZIndex = 7
+        aboutTopLine.Parent = aboutCard
+
+        local aboutTitleLabel = Instance.new("TextLabel")
+        aboutTitleLabel.Size = UDim2.new(1, -30, 0, 22)
+        aboutTitleLabel.Position = UDim2.new(0, 15, 0, 10)
+        aboutTitleLabel.BackgroundTransparency = 1
+        aboutTitleLabel.Text = "Gluttony UI Library"
+        aboutTitleLabel.TextColor3 = Theme.Text
+        aboutTitleLabel.TextSize = 15
+        aboutTitleLabel.Font = Theme.Font
+        aboutTitleLabel.TextXAlignment = Enum.TextXAlignment.Left
+        aboutTitleLabel.ZIndex = 7
+        aboutTitleLabel.Parent = aboutCard
+
+        local versionLabel = Instance.new("TextLabel")
+        versionLabel.Size = UDim2.new(0, 50, 0, 22)
+        versionLabel.Position = UDim2.new(1, -65, 0, 10)
+        versionLabel.BackgroundTransparency = 1
+        versionLabel.Text = "v1.3"
+        versionLabel.TextColor3 = Theme.Accent
+        versionLabel.TextSize = 13
+        versionLabel.Font = Theme.Font
+        versionLabel.TextXAlignment = Enum.TextXAlignment.Right
+        versionLabel.ZIndex = 7
+        versionLabel.Parent = aboutCard
+
+        local aboutDescLabel = Instance.new("TextLabel")
+        aboutDescLabel.Size = UDim2.new(1, -30, 0, 28)
+        aboutDescLabel.Position = UDim2.new(0, 15, 0, 34)
+        aboutDescLabel.BackgroundTransparency = 1
+        aboutDescLabel.Text = "A clean, minimal UI framework. Built for performance and simplicity."
+        aboutDescLabel.TextColor3 = Theme.TextDim
+        aboutDescLabel.TextSize = 12
+        aboutDescLabel.Font = Theme.FontLight
+        aboutDescLabel.TextXAlignment = Enum.TextXAlignment.Left
+        aboutDescLabel.TextWrapped = true
+        aboutDescLabel.ZIndex = 7
+        aboutDescLabel.Parent = aboutCard
+    end
+
+    BuildSettingsTab()
+
     return Window
 end
 
