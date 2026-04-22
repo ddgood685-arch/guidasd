@@ -505,6 +505,7 @@ end
 
 local IconTypes = {"circle", "square", "diamond", "bars", "triangle", "dot-grid", "bolt", "star", "shield"}
 
+local IconTypes = {"circle", "square", "diamond", "bars", "triangle", "dot-grid"}
 
 -- ════════════════════════════════════════════════════════════════
 -- CREATE WINDOW
