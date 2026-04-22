@@ -1493,16 +1493,44 @@ function GluttonyUI:CreateWindow(options)
             ddLabel.ZIndex = 9
             ddLabel.Parent = ddBtn
 
-            local arrow = Instance.new("TextLabel")
-            arrow.Size = UDim2.new(0, 20, 1, 0)
-            arrow.Position = UDim2.new(1, -24, 0, 0)
-            arrow.BackgroundTransparency = 1
-            arrow.Text = "▾"
-            arrow.TextColor3 = Theme.Accent
-            arrow.TextSize = 14
-            arrow.Font = Theme.Font
-            arrow.ZIndex = 9
-            arrow.Parent = ddBtn
+            -- Arrow indicator (geometric, no text)
+            local arrowContainer = Instance.new("Frame")
+            arrowContainer.Size = UDim2.new(0, 20, 1, 0)
+            arrowContainer.Position = UDim2.new(1, -24, 0, 0)
+            arrowContainer.BackgroundTransparency = 1
+            arrowContainer.ZIndex = 9
+            arrowContainer.Parent = ddBtn
+
+            local arrowFrame = Instance.new("Frame")
+            arrowFrame.Name = "ArrowFrame"
+            arrowFrame.Size = UDim2.new(0, 10, 0, 10)
+            arrowFrame.AnchorPoint = Vector2.new(0.5, 0.5)
+            arrowFrame.Position = UDim2.new(0.5, 0, 0.5, 0)
+            arrowFrame.BackgroundTransparency = 1
+            arrowFrame.ZIndex = 9
+            arrowFrame.Parent = arrowContainer
+
+            local arrowLine1 = Instance.new("Frame")
+            arrowLine1.Size = UDim2.new(0, 7, 0, 2)
+            arrowLine1.Position = UDim2.new(0, 0, 0.5, -1)
+            arrowLine1.AnchorPoint = Vector2.new(0, 0.5)
+            arrowLine1.BackgroundColor3 = Theme.Accent
+            arrowLine1.BorderSizePixel = 0
+            arrowLine1.Rotation = 35
+            arrowLine1.ZIndex = 10
+            arrowLine1.Parent = arrowFrame
+            Corner(arrowLine1, UDim.new(1, 0))
+
+            local arrowLine2 = Instance.new("Frame")
+            arrowLine2.Size = UDim2.new(0, 7, 0, 2)
+            arrowLine2.Position = UDim2.new(1, 0, 0.5, -1)
+            arrowLine2.AnchorPoint = Vector2.new(1, 0.5)
+            arrowLine2.BackgroundColor3 = Theme.Accent
+            arrowLine2.BorderSizePixel = 0
+            arrowLine2.Rotation = -35
+            arrowLine2.ZIndex = 10
+            arrowLine2.Parent = arrowFrame
+            Corner(arrowLine2, UDim.new(1, 0))
 
             local ddClick = Instance.new("TextButton")
             ddClick.Size = UDim2.new(1, 0, 1, 0)
@@ -1577,7 +1605,7 @@ function GluttonyUI:CreateWindow(options)
                         isOpen = false
                         panel.Visible = false
                         panel.Size = UDim2.new(0, 180, 0, 0)
-                        Tween(arrow, {Rotation = 0}, 0.2)
+                        Tween(arrowFrame, {Rotation = 0}, 0.2)
                         if callback then task.spawn(callback, opt) end
                     end))
                 end
@@ -1605,22 +1633,23 @@ function GluttonyUI:CreateWindow(options)
                     panel.Visible = true
                     
                     Tween(panel, {Size = UDim2.new(0, 180, 0, targetH)}, 0.25, Enum.EasingStyle.Quart)
-                    Tween(arrow, {Rotation = 180}, 0.25)
+                    Tween(arrowFrame, {Rotation = 180}, 0.25)
                 else
                     activeDropdownPanel = nil
                     Tween(panel, {Size = UDim2.new(0, 180, 0, 0)}, 0.2)
-                    Tween(arrow, {Rotation = 0}, 0.2)
+                    Tween(arrowFrame, {Rotation = 0}, 0.2)
                     task.delay(0.2, function() panel.Visible = false end)
                 end
             end))
 
-            AddConnection(page:GetPropertyChangedSignal("CanvasPosition"):Connect(function()
-                if isOpen then
+            -- Close dropdown on scroll (mouse wheel)
+            AddConnection(page.InputBegan:Connect(function(input)
+                if isOpen and input.UserInputType == Enum.UserInputType.MouseWheel then
                     isOpen = false
                     activeDropdownPanel = nil
                     panel.Visible = false
                     panel.Size = UDim2.new(0, 180, 0, 0)
-                    arrow.Rotation = 0
+                    arrowFrame.Rotation = 0
                 end
             end))
 
