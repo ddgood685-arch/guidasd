@@ -11,6 +11,7 @@ local Players          = game:GetService("Players")
 local TweenService     = game:GetService("TweenService")
 local UserInputService = game:GetService("UserInputService")
 local HttpService      = game:GetService("HttpService")
+local RunService     = game:GetService("RunService")
 
 local player    = Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
@@ -1627,7 +1628,7 @@ function GluttonyUI:CreateWindow(options)
 
                     local targetH = BuildOptions()
 
-                    -- Position once on open
+                    -- Position initially
                     local absPos = ddBtn.AbsolutePosition
                     local absSize = ddBtn.AbsoluteSize
                     local contentPos = content.AbsolutePosition
@@ -1638,6 +1639,28 @@ function GluttonyUI:CreateWindow(options)
                     
                     Tween(panel, {Size = UDim2.new(0, 180, 0, targetH)}, 0.25, Enum.EasingStyle.Quart)
                     Tween(arrowFrame, {Rotation = 0}, 0.25)
+
+                    -- Keep repositioning while open using Heartbeat
+                    local heartbeatConn = nil
+                    heartbeatConn = game:GetService("RunService").Heartbeat:Connect(function()
+                        if not isOpen or not panel.Visible then
+                            if heartbeatConn then heartbeatConn:Disconnect() end
+                            return
+                        end
+                        local ap = ddBtn.AbsolutePosition
+                        local as = ddBtn.AbsoluteSize
+                        local cp = content.AbsolutePosition
+                        
+                        -- Check if button is still visible in scroll area
+                        if ap.Y < cp.Y or ap.Y + as.Y > cp.Y + content.AbsoluteSize.Y then
+                            -- Button scrolled out of view, hide panel
+                            panel.Visible = false
+                        else
+                            panel.Visible = true
+                            panel.Position = UDim2.new(0, ap.X - cp.X, 0, ap.Y - cp.Y + as.Y + 4)
+                        end
+                    end)
+                    AddConnection(heartbeatConn)
                 else
                     activeDropdownPanel = nil
                     Tween(panel, {Size = UDim2.new(0, 180, 0, 0)}, 0.2)
