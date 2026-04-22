@@ -1437,7 +1437,7 @@ function GluttonyUI:CreateWindow(options)
         end
 
         -- ── DROPDOWN ─────────────────────────────────────────
-        
+
         function Tab:AddDropdown(labelText, options, callback)
             local order = NextOrder()
             local isOpen = false
@@ -1599,7 +1599,6 @@ function GluttonyUI:CreateWindow(options)
                 panel.CanvasSize = UDim2.new(0, 0, 0, panelLayout.AbsoluteContentSize.Y + 10)
                 return math.min(#options * 32 + 10, 160)
             end
-
             AddConnection(ddClick.MouseButton1Click:Connect(function()
                 isOpen = not isOpen
                 if isOpen then
@@ -1612,15 +1611,20 @@ function GluttonyUI:CreateWindow(options)
                     
                     local targetH = BuildOptions()
                     
+                    -- ✅ Increase canvas size temporarily to allow scrolling further down
+                    local currentCanvas = page.CanvasSize.Y.Offset
+                    local extraSpace = targetH + 60 -- Add extra padding
+                    page.CanvasSize = UDim2.new(0, 0, 0, currentCanvas + extraSpace)
+                    
                     -- Calculate space needed vs available
                     task.wait() -- Wait for layout to calculate sizes
                     local btnAbsBottomY = ddBtn.AbsolutePosition.Y + ddBtn.AbsoluteSize.Y
                     local pageBottomY = page.AbsolutePosition.Y + page.AbsoluteSize.Y
                     local spaceBelow = pageBottomY - btnAbsBottomY - 10
                     
-                    -- Scroll the page UP to create space if needed
+                    -- Scroll the page DOWN to see the full dropdown
                     if spaceBelow < targetH then
-                        local scrollAmount = targetH - spaceBelow + 10
+                        local scrollAmount = targetH - spaceBelow + 20 -- Extra 20px padding
                         page.CanvasPosition = Vector2.new(0, page.CanvasPosition.Y + scrollAmount)
                     end
                     
@@ -1628,7 +1632,7 @@ function GluttonyUI:CreateWindow(options)
                     Tween(panel, {Size = UDim2.new(1, 0, 0, targetH)}, 0.25)
                     Tween(arrowFrame, {Rotation = 180}, 0.25)
                     
-                    -- ✅ Keep dropdown positioned correctly when scrolling
+                    -- Keep dropdown positioned correctly when scrolling
                     if runServiceConn then runServiceConn:Disconnect() end
                     runServiceConn = RunService.RenderStepped:Connect(function()
                         if not isOpen or not panel or not panel.Parent then
