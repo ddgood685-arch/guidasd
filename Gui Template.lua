@@ -1550,11 +1550,10 @@ function GluttonyUI:CreateWindow(options)
             -- Fix GetPanelPosition to use screenGui-relative coordinates:
             local function GetPanelPosition()
                 local ddAbs = ddBtn.AbsolutePosition
-                local screenGuiOffset = screenGui.AbsolutePosition  -- usually 0,0
-                -- Account for GuiService inset (top bar)
+                local ddSize = ddBtn.AbsoluteSize
                 local inset = GuiService:GetGuiInset()
-                local relX = ddAbs.X - screenGuiOffset.X
-                local relY = ddAbs.Y - screenGuiOffset.Y + ddBtn.AbsoluteSize.Y + 4 - inset.Y
+                local relX = ddAbs.X
+                local relY = ddAbs.Y + ddSize.Y + 4 - inset.Y
                 return UDim2.new(0, relX, 0, relY)
             end
 
