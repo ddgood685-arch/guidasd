@@ -1497,27 +1497,40 @@ function GluttonyUI:CreateWindow(options)
             ddLabel.ZIndex = 9
             ddLabel.Parent = ddBtn
 
-            -- Simple red triangle arrow
+            -- Simple triangle arrow using two angled lines
             local arrowFrame = Instance.new("Frame")
             arrowFrame.Name = "ArrowFrame"
-            arrowFrame.Size = UDim2.new(0, 14, 0, 14)
-            arrowFrame.Position = UDim2.new(1, -24, 0.5, -7)
+            arrowFrame.Size = UDim2.new(0, 12, 0, 12)
+            arrowFrame.Position = UDim2.new(1, -22, 0.5, -6)
             arrowFrame.BackgroundTransparency = 1
             arrowFrame.ZIndex = 9
             arrowFrame.Parent = ddBtn
 
-            -- Create a proper triangle using ImageLabel
-            local arrowTriangle = Instance.new("ImageLabel")
-            arrowTriangle.Size = UDim2.new(0, 10, 0, 7)
-            arrowTriangle.AnchorPoint = Vector2.new(0.5, 0.5)
-            arrowTriangle.Position = UDim2.new(0.5, 0, 0.5, 0)
-            arrowTriangle.BackgroundTransparency = 1
-            arrowTriangle.Image = "rbxasset://textures/ui/Chevron_Down.png"
-            arrowTriangle.ImageColor3 = Theme.Accent
-            arrowTriangle.ImageTransparency = 0.2
-            arrowTriangle.ScaleType = Enum.ScaleType.Fit
-            arrowTriangle.ZIndex = 10
-            arrowTriangle.Parent = arrowFrame
+            -- Left side of chevron
+            local arrowLeft = Instance.new("Frame")
+            arrowLeft.Size = UDim2.new(0, 7, 0, 2)
+            arrowLeft.Position = UDim2.new(0, 0, 0.5, -1)
+            arrowLeft.AnchorPoint = Vector2.new(0, 0.5)
+            arrowLeft.BackgroundColor3 = Theme.Accent
+            arrowLeft.BackgroundTransparency = 0.2
+            arrowLeft.Rotation = 35
+            arrowLeft.BorderSizePixel = 0
+            arrowLeft.ZIndex = 10
+            arrowLeft.Parent = arrowFrame
+            Corner(arrowLeft, UDim.new(1, 0))
+
+            -- Right side of chevron
+            local arrowRight = Instance.new("Frame")
+            arrowRight.Size = UDim2.new(0, 7, 0, 2)
+            arrowRight.Position = UDim2.new(1, 0, 0.5, -1)
+            arrowRight.AnchorPoint = Vector2.new(1, 0.5)
+            arrowRight.BackgroundColor3 = Theme.Accent
+            arrowRight.BackgroundTransparency = 0.2
+            arrowRight.Rotation = -35
+            arrowRight.BorderSizePixel = 0
+            arrowRight.ZIndex = 10
+            arrowRight.Parent = arrowFrame
+            Corner(arrowRight, UDim.new(1, 0))
 
             local ddClick = Instance.new("TextButton")
             ddClick.Size = UDim2.new(1, 0, 1, 0)
