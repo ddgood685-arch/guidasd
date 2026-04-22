@@ -1437,9 +1437,7 @@ function GluttonyUI:CreateWindow(options)
         end
 
         -- ── DROPDOWN ─────────────────────────────────────────
-
-        -- ── DROPDOWN ─────────────────────────────────────────
-
+        
         function Tab:AddDropdown(labelText, options, callback)
             local order = NextOrder()
             local isOpen = false
@@ -1459,7 +1457,7 @@ function GluttonyUI:CreateWindow(options)
             row.BorderSizePixel = 0
             row.LayoutOrder = order
             row.ZIndex = 10
-            row.ClipsDescendants = false -- Allow panel to overflow the row
+            row.ClipsDescendants = false -- ✅ Allow panel to extend outside row
             row.Parent = page
             Corner(row, Theme.CornerRadius)
 
@@ -1533,17 +1531,18 @@ function GluttonyUI:CreateWindow(options)
             ddClick.ZIndex = 14
             ddClick.Parent = ddBtn
 
+            -- ✅ Parent to row (allows extension beyond row but stays in viewport)
             local panel = Instance.new("ScrollingFrame")
             panel.Size = UDim2.new(1, 0, 0, 0)
-            panel.Position = UDim2.new(0, 0, 1, 4)
+            panel.Position = UDim2.new(1, -196, 1, 4) -- Aligns with ddBtn position
             panel.BackgroundColor3 = Theme.DropdownBg
             panel.BorderSizePixel = 0
             panel.ClipsDescendants = true
             panel.ScrollBarThickness = 3
             panel.ScrollBarImageColor3 = Theme.Accent
-            panel.ZIndex = 50
+            panel.ZIndex = 20
             panel.Visible = false
-            panel.Parent = ddBtn 
+            panel.Parent = row
             Corner(panel, UDim.new(0, 6))
             Stroke(panel, Theme.Accent, 1, 0.6)
 
@@ -1557,6 +1556,8 @@ function GluttonyUI:CreateWindow(options)
                     ddLabel.TextColor3 = Theme.Text
                 end
             end)
+
+            local runServiceConn = nil
 
             local function BuildOptions()
                 for _, child in pairs(panel:GetChildren()) do
@@ -1573,7 +1574,7 @@ function GluttonyUI:CreateWindow(options)
                     optBtn.BorderSizePixel = 0
                     optBtn.AutoButtonColor = false
                     optBtn.LayoutOrder = i
-                    optBtn.ZIndex = 51
+                    optBtn.ZIndex = 21
                     optBtn.Parent = panel
                     Corner(optBtn, UDim.new(0, 5))
 
@@ -1586,7 +1587,12 @@ function GluttonyUI:CreateWindow(options)
                         activeDropdownPanel = nil
                         Tween(panel, {Size = UDim2.new(1, 0, 0, 0)}, 0.2)
                         Tween(arrowFrame, {Rotation = 0}, 0.2)
-                        task.delay(0.2, function() panel.Visible = false end)
+                        task.delay(0.2, function() 
+                            if panel and panel.Parent then 
+                                panel.Visible = false 
+                            end
+                        end)
+                        if runServiceConn then runServiceConn:Disconnect() end
                         if callback then task.spawn(callback, opt) end
                     end))
                 end
@@ -1597,6 +1603,7 @@ function GluttonyUI:CreateWindow(options)
             AddConnection(ddClick.MouseButton1Click:Connect(function()
                 isOpen = not isOpen
                 if isOpen then
+                    -- Close any other open dropdown
                     if activeDropdownPanel and activeDropdownPanel ~= panel then
                         activeDropdownPanel.Visible = false
                         activeDropdownPanel.Size = UDim2.new(1, 0, 0, 0)
@@ -1604,25 +1611,42 @@ function GluttonyUI:CreateWindow(options)
                     activeDropdownPanel = panel
                     
                     local targetH = BuildOptions()
+                    
+                    -- Calculate space needed vs available
+                    task.wait() -- Wait for layout to calculate sizes
+                    local btnAbsBottomY = ddBtn.AbsolutePosition.Y + ddBtn.AbsoluteSize.Y
+                    local pageBottomY = page.AbsolutePosition.Y + page.AbsoluteSize.Y
+                    local spaceBelow = pageBottomY - btnAbsBottomY - 10
+                    
+                    -- Scroll the page UP to create space if needed
+                    if spaceBelow < targetH then
+                        local scrollAmount = targetH - spaceBelow + 10
+                        page.CanvasPosition = Vector2.new(0, page.CanvasPosition.Y + scrollAmount)
+                    end
+                    
                     panel.Visible = true
                     Tween(panel, {Size = UDim2.new(1, 0, 0, targetH)}, 0.25)
                     Tween(arrowFrame, {Rotation = 180}, 0.25)
                     
-                    -- ✅ AUTO-SCROLL: If the dropdown hits the bottom border, 
-                    -- scroll the page down smoothly so it stays inside the GUI.
-                    task.defer(function()
-                        local rowBottom = (row.AbsolutePosition.Y - page.AbsolutePosition.Y) + page.CanvasPosition.Y + row.AbsoluteSize.Y
-                        local targetScroll = (rowBottom + targetH + 10) - page.AbsoluteWindowSize.Y
-                        
-                        if targetScroll > page.CanvasPosition.Y then
-                            Tween(page, {CanvasPosition = Vector2.new(0, targetScroll)}, 0.25)
+                    -- ✅ Keep dropdown positioned correctly when scrolling
+                    if runServiceConn then runServiceConn:Disconnect() end
+                    runServiceConn = RunService.RenderStepped:Connect(function()
+                        if not isOpen or not panel or not panel.Parent then
+                            if runServiceConn then runServiceConn:Disconnect() end
+                            return
                         end
+                        panel.Position = UDim2.new(1, -196, 1, 4)
                     end)
                 else
                     activeDropdownPanel = nil
                     Tween(panel, {Size = UDim2.new(1, 0, 0, 0)}, 0.2)
                     Tween(arrowFrame, {Rotation = 0}, 0.2)
-                    task.delay(0.2, function() panel.Visible = false end)
+                    task.delay(0.2, function() 
+                        if panel and panel.Parent then 
+                            panel.Visible = false 
+                        end
+                    end)
+                    if runServiceConn then runServiceConn:Disconnect() end
                 end
             end))
 
