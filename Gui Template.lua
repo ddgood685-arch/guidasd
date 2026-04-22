@@ -793,6 +793,10 @@ function GluttonyUI:CreateWindow(options)
             activeDropdownPanel.Visible = false
             activeDropdownPanel.Size = UDim2.new(0, 180, 0, 0)
             activeDropdownPanel = nil
+            -- Force all dropdowns closed
+            for _, pg in pairs(Window._pages) do
+                -- isOpen flags are local to each dropdown, panel.Visible = false is enough
+            end
         end
 
         Window._currentTab = tabName
@@ -1496,22 +1500,24 @@ function GluttonyUI:CreateWindow(options)
             -- Simple red triangle arrow
             local arrowFrame = Instance.new("Frame")
             arrowFrame.Name = "ArrowFrame"
-            arrowFrame.Size = UDim2.new(0, 20, 0, 20)
-            arrowFrame.Position = UDim2.new(1, -24, 0.5, -10)
+            arrowFrame.Size = UDim2.new(0, 14, 0, 14)
+            arrowFrame.Position = UDim2.new(1, -24, 0.5, -7)
             arrowFrame.BackgroundTransparency = 1
             arrowFrame.ZIndex = 9
             arrowFrame.Parent = ddBtn
 
-            local arrowTriangle = Instance.new("Frame")
-            arrowTriangle.Size = UDim2.new(0, 8, 0, 8)
+            -- Create a proper triangle using ImageLabel
+            local arrowTriangle = Instance.new("ImageLabel")
+            arrowTriangle.Size = UDim2.new(0, 10, 0, 7)
             arrowTriangle.AnchorPoint = Vector2.new(0.5, 0.5)
             arrowTriangle.Position = UDim2.new(0.5, 0, 0.5, 0)
-            arrowTriangle.BackgroundColor3 = Theme.Accent
-            arrowTriangle.Rotation = 45
-            arrowTriangle.BorderSizePixel = 0
+            arrowTriangle.BackgroundTransparency = 1
+            arrowTriangle.Image = "rbxasset://textures/ui/Chevron_Down.png"
+            arrowTriangle.ImageColor3 = Theme.Accent
+            arrowTriangle.ImageTransparency = 0.2
+            arrowTriangle.ScaleType = Enum.ScaleType.Fit
             arrowTriangle.ZIndex = 10
             arrowTriangle.Parent = arrowFrame
-            Corner(arrowTriangle, UDim.new(0, 1))
 
             local ddClick = Instance.new("TextButton")
             ddClick.Size = UDim2.new(1, 0, 1, 0)
@@ -1585,7 +1591,6 @@ function GluttonyUI:CreateWindow(options)
                         ddLabel.TextColor3 = Theme.Text
                         isOpen = false
                         activeDropdownPanel = nil
-                        if repositionConn then repositionConn:Disconnect() repositionConn = nil end
                         panel.Visible = false
                         panel.Size = UDim2.new(0, 180, 0, 0)
                         Tween(arrowFrame, {Rotation = 0}, 0.2)
@@ -1609,44 +1614,19 @@ function GluttonyUI:CreateWindow(options)
 
                     local targetH = BuildOptions()
 
-                    -- Position initially
+                    -- Position once on open
                     local absPos = ddBtn.AbsolutePosition
                     local absSize = ddBtn.AbsoluteSize
                     local contentPos = content.AbsolutePosition
+                    
                     panel.Position = UDim2.new(0, absPos.X - contentPos.X, 0, absPos.Y - contentPos.Y + absSize.Y + 4)
                     panel.Size = UDim2.new(0, 180, 0, 0)
                     panel.Visible = true
-
+                    
                     Tween(panel, {Size = UDim2.new(0, 180, 0, targetH)}, 0.25, Enum.EasingStyle.Quart)
-                    Tween(arrowFrame, {Rotation = 180}, 0.25)
-
-                    -- Keep repositioning while open
-                    if repositionConn then pcall(function() repositionConn:Disconnect() end) end
-                    repositionConn = game:GetService("RunService").Heartbeat:Connect(function()
-                        if not isOpen or not panel.Visible then
-                            if repositionConn then repositionConn:Disconnect() repositionConn = nil end
-                            return
-                        end
-                        local ap = ddBtn.AbsolutePosition
-                        local as = ddBtn.AbsoluteSize
-                        local cp = content.AbsolutePosition
-                        local cs = content.AbsoluteSize
-
-                        local newY = ap.Y - cp.Y + as.Y + 4
-                        local newX = ap.X - cp.X
-
-                        -- Hide if scrolled out of view
-                        if newY < 0 or newY > cs.Y or ap.Y < cp.Y or ap.Y + as.Y > cp.Y + cs.Y then
-                            panel.Visible = false
-                        else
-                            panel.Visible = true
-                            panel.Position = UDim2.new(0, newX, 0, newY)
-                        end
-                    end)
-                    AddConnection(repositionConn)
+                    Tween(arrowFrame, {Rotation = 0}, 0.25)
                 else
                     activeDropdownPanel = nil
-                    if repositionConn then repositionConn:Disconnect() repositionConn = nil end
                     Tween(panel, {Size = UDim2.new(0, 180, 0, 0)}, 0.2)
                     Tween(arrowFrame, {Rotation = 0}, 0.2)
                     task.delay(0.2, function() panel.Visible = false end)
