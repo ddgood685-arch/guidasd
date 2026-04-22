@@ -1438,12 +1438,163 @@ function GluttonyUI:CreateWindow(options)
 
         -- ── DROPDOWN ─────────────────────────────────────────
         
--- Inside Tab:AddDropdown function, replace the Click Connection block with this:
+        function Tab:AddDropdown(labelText, options, callback)
+            local order = NextOrder()
+            local isOpen = false
+
+            local saved = StateStore[labelText]
+            local selected = nil
+            if saved ~= nil and type(saved) == "string" then
+                for _, opt in ipairs(options) do
+                    if opt == saved then selected = saved; break end
+                end
+            end
+            StateStore[labelText] = selected
+
+            local row = Instance.new("Frame")
+            row.Size = UDim2.new(1, 0, 0, Theme.RowHeight)
+            row.BackgroundColor3 = RowColor(order)
+            row.BorderSizePixel = 0
+            row.LayoutOrder = order
+            row.ZIndex = 10
+            row.ClipsDescendants = false -- Allow panel to overflow the row
+            row.Parent = page
+            Corner(row, Theme.CornerRadius)
+
+            local accentBar = HoverAccent(row)
+
+            local lbl = Instance.new("TextLabel")
+            lbl.Size = UDim2.new(0, 140, 1, 0)
+            lbl.Position = UDim2.new(0, 18, 0, 0)
+            lbl.BackgroundTransparency = 1
+            lbl.Text = labelText
+            lbl.TextColor3 = Theme.Text
+            lbl.TextSize = 14
+            lbl.Font = Theme.FontLight
+            lbl.TextXAlignment = Enum.TextXAlignment.Left
+            lbl.ZIndex = 11
+            lbl.Parent = row
+
+            local ddBtn = Instance.new("Frame")
+            ddBtn.Size = UDim2.new(0, 180, 0, 30)
+            ddBtn.Position = UDim2.new(1, -196, 0.5, -15)
+            ddBtn.BackgroundColor3 = Theme.InputBg
+            ddBtn.BorderSizePixel = 0
+            ddBtn.ZIndex = 12
+            ddBtn.Parent = row
+            Corner(ddBtn, UDim.new(0, 6))
+            Stroke(ddBtn, Theme.Border, 1, 0.5)
+
+            local ddLabel = Instance.new("TextLabel")
+            ddLabel.Size = UDim2.new(1, -32, 1, 0)
+            ddLabel.Position = UDim2.new(0, 10, 0, 0)
+            ddLabel.BackgroundTransparency = 1
+            ddLabel.Text = selected or "Select..."
+            ddLabel.TextColor3 = selected and Theme.Text or Theme.TextDim
+            ddLabel.TextSize = 13
+            ddLabel.Font = Theme.FontLight
+            ddLabel.TextXAlignment = Enum.TextXAlignment.Left
+            ddLabel.ZIndex = 13
+            ddLabel.Parent = ddBtn
+
+            local arrowFrame = Instance.new("Frame")
+            arrowFrame.Size = UDim2.new(0, 12, 0, 12)
+            arrowFrame.Position = UDim2.new(1, -22, 0.5, -6)
+            arrowFrame.BackgroundTransparency = 1
+            arrowFrame.ZIndex = 13
+            arrowFrame.Parent = ddBtn
+
+            local arrowLeft = Instance.new("Frame")
+            arrowLeft.Size = UDim2.new(0, 7, 0, 2)
+            arrowLeft.Position = UDim2.new(0, 0, 0.5, -1)
+            arrowLeft.AnchorPoint = Vector2.new(0, 0.5)
+            arrowLeft.BackgroundColor3 = Theme.Accent
+            arrowLeft.Rotation = 35
+            arrowLeft.BorderSizePixel = 0
+            arrowLeft.Parent = arrowFrame
+            Corner(arrowLeft, UDim.new(1, 0))
+
+            local arrowRight = Instance.new("Frame")
+            arrowRight.Size = UDim2.new(0, 7, 0, 2)
+            arrowRight.Position = UDim2.new(1, 0, 0.5, -1)
+            arrowRight.AnchorPoint = Vector2.new(1, 0.5)
+            arrowRight.BackgroundColor3 = Theme.Accent
+            arrowRight.Rotation = -35
+            arrowRight.BorderSizePixel = 0
+            arrowRight.Parent = arrowFrame
+            Corner(arrowRight, UDim.new(1, 0))
+
+            local ddClick = Instance.new("TextButton")
+            ddClick.Size = UDim2.new(1, 0, 1, 0)
+            ddClick.BackgroundTransparency = 1
+            ddClick.Text = ""
+            ddClick.ZIndex = 14
+            ddClick.Parent = ddBtn
+
+            local panel = Instance.new("ScrollingFrame")
+            panel.Size = UDim2.new(1, 0, 0, 0)
+            panel.Position = UDim2.new(0, 0, 1, 4)
+            panel.BackgroundColor3 = Theme.DropdownBg
+            panel.BorderSizePixel = 0
+            panel.ClipsDescendants = true
+            panel.ScrollBarThickness = 3
+            panel.ScrollBarImageColor3 = Theme.Accent
+            panel.ZIndex = 50
+            panel.Visible = false
+            panel.Parent = ddBtn 
+            Corner(panel, UDim.new(0, 6))
+            Stroke(panel, Theme.Accent, 1, 0.6)
+
+            local panelLayout = ListLayout(panel, 2)
+            Padding(panel, 4, 4, 4, 4)
+
+            ConfigManager:RegisterUpdater(labelText, function(val)
+                if type(val) == "string" then
+                    selected = val
+                    ddLabel.Text = val
+                    ddLabel.TextColor3 = Theme.Text
+                end
+            end)
+
+            local function BuildOptions()
+                for _, child in pairs(panel:GetChildren()) do
+                    if child:IsA("TextButton") then child:Destroy() end
+                end
+                for i, opt in ipairs(options) do
+                    local optBtn = Instance.new("TextButton")
+                    optBtn.Size = UDim2.new(1, 0, 0, 30)
+                    optBtn.BackgroundColor3 = (selected == opt) and Color3.fromRGB(40, 50, 65) or Theme.DropdownBg
+                    optBtn.Text = opt
+                    optBtn.TextColor3 = (selected == opt) and Theme.Accent or Theme.Text
+                    optBtn.TextSize = 13
+                    optBtn.Font = Theme.FontLight
+                    optBtn.BorderSizePixel = 0
+                    optBtn.AutoButtonColor = false
+                    optBtn.LayoutOrder = i
+                    optBtn.ZIndex = 51
+                    optBtn.Parent = panel
+                    Corner(optBtn, UDim.new(0, 5))
+
+                    AddConnection(optBtn.MouseButton1Click:Connect(function()
+                        selected = opt
+                        ConfigManager:Set(labelText, opt)
+                        ddLabel.Text = opt
+                        ddLabel.TextColor3 = Theme.Text
+                        isOpen = false
+                        activeDropdownPanel = nil
+                        Tween(panel, {Size = UDim2.new(1, 0, 0, 0)}, 0.2)
+                        Tween(arrowFrame, {Rotation = 0}, 0.2)
+                        task.delay(0.2, function() panel.Visible = false end)
+                        if callback then task.spawn(callback, opt) end
+                    end))
+                end
+                panel.CanvasSize = UDim2.new(0, 0, 0, panelLayout.AbsoluteContentSize.Y + 10)
+                return math.min(#options * 32 + 10, 160)
+            end
 
             AddConnection(ddClick.MouseButton1Click:Connect(function()
                 isOpen = not isOpen
                 if isOpen then
-                    -- Close any other open dropdown
                     if activeDropdownPanel and activeDropdownPanel ~= panel then
                         activeDropdownPanel.Visible = false
                         activeDropdownPanel.Size = UDim2.new(1, 0, 0, 0)
@@ -1451,58 +1602,46 @@ function GluttonyUI:CreateWindow(options)
                     activeDropdownPanel = panel
                     
                     local targetH = BuildOptions()
+                    panel.Visible = true
+                    Tween(panel, {Size = UDim2.new(1, 0, 0, targetH)}, 0.25)
+                    Tween(arrowFrame, {Rotation = 180}, 0.25)
                     
-                    -- ✅ Calculate space needed vs available AFTER layout settles
+                    -- ✅ AUTO-SCROLL: If the dropdown hits the bottom border, 
+                    -- scroll the page down smoothly so it stays inside the GUI.
                     task.defer(function()
-                        local btnAbsBottomY = ddBtn.AbsolutePosition.Y + ddBtn.AbsoluteSize.Y
-                        local pageBottomY = page.AbsolutePosition.Y + page.AbsoluteSize.Y
+                        local rowBottom = (row.AbsolutePosition.Y - page.AbsolutePosition.Y) + page.CanvasPosition.Y + row.AbsoluteSize.Y
+                        local targetScroll = (rowBottom + targetH + 10) - page.AbsoluteWindowSize.Y
                         
-                        -- ✅ Increased Buffer: Added 40px padding at bottom to ensure dropdown NEVER clips
-                        local bufferMargin = 40 
-                        local spaceBelow = pageBottomY - btnAbsBottomY - bufferMargin
-                        
-                        -- Scroll the page DOWN (canvas position UP) to create safe space
-                        if spaceBelow < targetH then
-                            local scrollAmount = (targetH - spaceBelow) + bufferMargin
-                            
-                            -- Prevent overscroll beyond canvas limit
-                            local maxScroll = page.CanvasSize.Y - page.AbsoluteWindowSize.Y
-                            local newScroll = page.CanvasPosition.Y + scrollAmount
-                            
-                            if newScroll <= maxScroll then
-                                Tween(page, {CanvasPosition = Vector2.new(0, newScroll)}, 0.25)
-                            else
-                                -- Forcefully jump if needed
-                                page.CanvasPosition = Vector2.new(0, maxScroll)
-                            end
+                        if targetScroll > page.CanvasPosition.Y then
+                            Tween(page, {CanvasPosition = Vector2.new(0, targetScroll)}, 0.25)
                         end
-                        
-                        panel.Visible = true
-                        Tween(panel, {Size = UDim2.new(1, 0, 0, targetH)}, 0.25)
-                        Tween(arrowFrame, {Rotation = 180}, 0.25)
-                        
-                        -- ✅ Keep dropdown positioned correctly when scrolling
-                        if runServiceConn then runServiceConn:Disconnect() end
-                        runServiceConn = RunService.Heartbeat:Connect(function()
-                            if not isOpen or not panel or not panel.Parent then
-                                if runServiceConn then runServiceConn:Disconnect() end
-                                return
-                            end
-                            panel.Position = UDim2.new(1, -196, 1, 4)
-                        end)
                     end)
                 else
                     activeDropdownPanel = nil
                     Tween(panel, {Size = UDim2.new(1, 0, 0, 0)}, 0.2)
                     Tween(arrowFrame, {Rotation = 0}, 0.2)
-                    task.delay(0.2, function() 
-                        if panel and panel.Parent then 
-                            panel.Visible = false 
-                        end
-                    end)
-                    if runServiceConn then runServiceConn:Disconnect() end
+                    task.delay(0.2, function() panel.Visible = false end)
                 end
             end))
+
+            SetupHover(row, RowColor(order), accentBar)
+
+            if selected and callback then task.defer(callback, selected) end
+
+            return {
+                Set = function(_, val)
+                    selected = val
+                    ConfigManager:Set(labelText, val)
+                    ddLabel.Text = val or "Select..."
+                    ddLabel.TextColor3 = val and Theme.Text or Theme.TextDim
+                end,
+                Get = function() return selected end,
+                Refresh = function(_, newOptions)
+                    options = newOptions
+                    if isOpen then BuildOptions() end
+                end,
+            }
+        end
 
         -- ── SEARCH BAR ───────────────────────────────────────
 
