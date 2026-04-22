@@ -505,6 +505,8 @@ end
 
 local IconTypes = {"circle", "square", "diamond", "bars", "triangle", "dot-grid", "bolt", "star", "shield"}
 
+local IconTypes = {"circle", "square", "diamond", "bars", "triangle", "dot-grid"}
+
 -- ════════════════════════════════════════════════════════════════
 -- CREATE WINDOW
 -- ════════════════════════════════════════════════════════════════
@@ -1642,13 +1644,13 @@ function GluttonyUI:CreateWindow(options)
                         
                         -- ✅ Keep dropdown positioned correctly when scrolling
                         if runServiceConn then runServiceConn:Disconnect() end
-                        runServiceConn = AddConnection(RunService.Heartbeat:Connect(function()
+                        runServiceConn = RunService.Heartbeat:Connect(function()
                             if not isOpen or not panel or not panel.Parent then
                                 if runServiceConn then runServiceConn:Disconnect() end
                                 return
                             end
-                            -- Keep this only if you intend to handle window resizing, otherwise delete the loop
-                        end))
+                            panel.Position = UDim2.new(1, -196, 1, 4)
+                        end)
                     end)
                 else
                     activeDropdownPanel = nil
@@ -2070,15 +2072,20 @@ function GluttonyUI:CreateWindow(options)
 
         local function ApplyOpacity(val)
             local t = 1 - (val / 100)
-            main.GroupTransparency = t -- Use this if you add a CanvasGroup to 'main'
-            -- OR Fix the existing loop:
             main.BackgroundTransparency = t
             if titleBar then titleBar.BackgroundTransparency = t end
             if sidebar then sidebar.BackgroundTransparency = t end
             if content then content.BackgroundTransparency = t end
-            
+            -- Apply to title cover too
             local cover = titleBar:FindFirstChild("Frame")
             if cover then cover.BackgroundTransparency = t end
+            for _, pg in pairs(Window._pages) do
+                for _, child in pairs(pg:GetChildren()) do
+                    if child:IsA("Frame") and not child:FindFirstChild("ToggleCircle") and not child.Name:find("Slider") and not child.Name:find("HoverBar") then
+                        child.BackgroundTransparency = math.max(t, child.BackgroundTransparency)
+                    end
+                end
+            end
         end
 
         local function UpdateOpacity(input)
