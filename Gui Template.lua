@@ -1493,44 +1493,25 @@ function GluttonyUI:CreateWindow(options)
             ddLabel.ZIndex = 9
             ddLabel.Parent = ddBtn
 
-            -- Arrow indicator (geometric, no text)
-            local arrowContainer = Instance.new("Frame")
-            arrowContainer.Size = UDim2.new(0, 20, 1, 0)
-            arrowContainer.Position = UDim2.new(1, -24, 0, 0)
-            arrowContainer.BackgroundTransparency = 1
-            arrowContainer.ZIndex = 9
-            arrowContainer.Parent = ddBtn
-
+            -- Simple red triangle arrow
             local arrowFrame = Instance.new("Frame")
             arrowFrame.Name = "ArrowFrame"
-            arrowFrame.Size = UDim2.new(0, 10, 0, 10)
-            arrowFrame.AnchorPoint = Vector2.new(0.5, 0.5)
-            arrowFrame.Position = UDim2.new(0.5, 0, 0.5, 0)
+            arrowFrame.Size = UDim2.new(0, 20, 0, 20)
+            arrowFrame.Position = UDim2.new(1, -24, 0.5, -10)
             arrowFrame.BackgroundTransparency = 1
             arrowFrame.ZIndex = 9
-            arrowFrame.Parent = arrowContainer
+            arrowFrame.Parent = ddBtn
 
-            local arrowLine1 = Instance.new("Frame")
-            arrowLine1.Size = UDim2.new(0, 7, 0, 2)
-            arrowLine1.Position = UDim2.new(0, 0, 0.5, -1)
-            arrowLine1.AnchorPoint = Vector2.new(0, 0.5)
-            arrowLine1.BackgroundColor3 = Theme.Accent
-            arrowLine1.BorderSizePixel = 0
-            arrowLine1.Rotation = 35
-            arrowLine1.ZIndex = 10
-            arrowLine1.Parent = arrowFrame
-            Corner(arrowLine1, UDim.new(1, 0))
-
-            local arrowLine2 = Instance.new("Frame")
-            arrowLine2.Size = UDim2.new(0, 7, 0, 2)
-            arrowLine2.Position = UDim2.new(1, 0, 0.5, -1)
-            arrowLine2.AnchorPoint = Vector2.new(1, 0.5)
-            arrowLine2.BackgroundColor3 = Theme.Accent
-            arrowLine2.BorderSizePixel = 0
-            arrowLine2.Rotation = -35
-            arrowLine2.ZIndex = 10
-            arrowLine2.Parent = arrowFrame
-            Corner(arrowLine2, UDim.new(1, 0))
+            local arrowTriangle = Instance.new("Frame")
+            arrowTriangle.Size = UDim2.new(0, 8, 0, 8)
+            arrowTriangle.AnchorPoint = Vector2.new(0.5, 0.5)
+            arrowTriangle.Position = UDim2.new(0.5, 0, 0.5, 0)
+            arrowTriangle.BackgroundColor3 = Theme.Accent
+            arrowTriangle.Rotation = 45
+            arrowTriangle.BorderSizePixel = 0
+            arrowTriangle.ZIndex = 10
+            arrowTriangle.Parent = arrowFrame
+            Corner(arrowTriangle, UDim.new(0, 1))
 
             local ddClick = Instance.new("TextButton")
             ddClick.Size = UDim2.new(1, 0, 1, 0)
@@ -1603,6 +1584,8 @@ function GluttonyUI:CreateWindow(options)
                         ddLabel.Text = opt
                         ddLabel.TextColor3 = Theme.Text
                         isOpen = false
+                        activeDropdownPanel = nil
+                        if repositionConn then repositionConn:Disconnect() repositionConn = nil end
                         panel.Visible = false
                         panel.Size = UDim2.new(0, 180, 0, 0)
                         Tween(arrowFrame, {Rotation = 0}, 0.2)
@@ -1613,10 +1596,11 @@ function GluttonyUI:CreateWindow(options)
                 return math.min(#options * 32 + 10, 160)
             end
 
+            local repositionConn = nil
+
             AddConnection(ddClick.MouseButton1Click:Connect(function()
                 isOpen = not isOpen
                 if isOpen then
-                    -- Close previous dropdown if any
                     if activeDropdownPanel and activeDropdownPanel ~= panel and activeDropdownPanel.Parent then
                         activeDropdownPanel.Visible = false
                         activeDropdownPanel.Size = UDim2.new(0, 180, 0, 0)
@@ -1624,32 +1608,48 @@ function GluttonyUI:CreateWindow(options)
                     activeDropdownPanel = panel
 
                     local targetH = BuildOptions()
+
+                    -- Position initially
                     local absPos = ddBtn.AbsolutePosition
                     local absSize = ddBtn.AbsoluteSize
                     local contentPos = content.AbsolutePosition
-                    
                     panel.Position = UDim2.new(0, absPos.X - contentPos.X, 0, absPos.Y - contentPos.Y + absSize.Y + 4)
                     panel.Size = UDim2.new(0, 180, 0, 0)
                     panel.Visible = true
-                    
+
                     Tween(panel, {Size = UDim2.new(0, 180, 0, targetH)}, 0.25, Enum.EasingStyle.Quart)
                     Tween(arrowFrame, {Rotation = 180}, 0.25)
+
+                    -- Keep repositioning while open
+                    if repositionConn then pcall(function() repositionConn:Disconnect() end) end
+                    repositionConn = game:GetService("RunService").Heartbeat:Connect(function()
+                        if not isOpen or not panel.Visible then
+                            if repositionConn then repositionConn:Disconnect() repositionConn = nil end
+                            return
+                        end
+                        local ap = ddBtn.AbsolutePosition
+                        local as = ddBtn.AbsoluteSize
+                        local cp = content.AbsolutePosition
+                        local cs = content.AbsoluteSize
+
+                        local newY = ap.Y - cp.Y + as.Y + 4
+                        local newX = ap.X - cp.X
+
+                        -- Hide if scrolled out of view
+                        if newY < 0 or newY > cs.Y or ap.Y < cp.Y or ap.Y + as.Y > cp.Y + cs.Y then
+                            panel.Visible = false
+                        else
+                            panel.Visible = true
+                            panel.Position = UDim2.new(0, newX, 0, newY)
+                        end
+                    end)
+                    AddConnection(repositionConn)
                 else
                     activeDropdownPanel = nil
+                    if repositionConn then repositionConn:Disconnect() repositionConn = nil end
                     Tween(panel, {Size = UDim2.new(0, 180, 0, 0)}, 0.2)
                     Tween(arrowFrame, {Rotation = 0}, 0.2)
                     task.delay(0.2, function() panel.Visible = false end)
-                end
-            end))
-
-            -- Close dropdown on scroll (mouse wheel)
-            AddConnection(page.InputBegan:Connect(function(input)
-                if isOpen and input.UserInputType == Enum.UserInputType.MouseWheel then
-                    isOpen = false
-                    activeDropdownPanel = nil
-                    panel.Visible = false
-                    panel.Size = UDim2.new(0, 180, 0, 0)
-                    arrowFrame.Rotation = 0
                 end
             end))
 
