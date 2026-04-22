@@ -1614,6 +1614,16 @@ function GluttonyUI:CreateWindow(options)
                 end
             end))
 
+            AddConnection(page:GetPropertyChangedSignal("CanvasPosition"):Connect(function()
+                if isOpen then
+                    isOpen = false
+                    activeDropdownPanel = nil
+                    panel.Visible = false
+                    panel.Size = UDim2.new(0, 180, 0, 0)
+                    arrow.Rotation = 0
+                end
+            end))
+
             SetupHover(row, RowColor(order), accentBar)
 
             -- ✅ FIX: fires callback ONCE if saved selection exists
