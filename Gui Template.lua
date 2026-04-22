@@ -1551,7 +1551,7 @@ function GluttonyUI:CreateWindow(options)
             panel.CanvasSize = UDim2.new(0, 0, 0, 0)
             panel.ZIndex = 100
             panel.Visible = false
-            panel.Parent = content
+            panel.Parent = screenGui
             Corner(panel, UDim.new(0, 6))
             Stroke(panel, Theme.Accent, 1, 0.6)
 
@@ -1633,7 +1633,7 @@ function GluttonyUI:CreateWindow(options)
                     local absSize = ddBtn.AbsoluteSize
                     local contentPos = content.AbsolutePosition
                     
-                    panel.Position = UDim2.new(0, absPos.X - contentPos.X, 0, absPos.Y - contentPos.Y + absSize.Y + 4)
+                    panel.Position = UDim2.new(0, absPos.X, 0, absPos.Y + absSize.Y + 4)
                     panel.Size = UDim2.new(0, 180, 0, 0)
                     panel.Visible = true
                     
