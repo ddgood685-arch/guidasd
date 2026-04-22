@@ -1531,9 +1531,10 @@ function GluttonyUI:CreateWindow(options)
             ddClick.ZIndex = 14
             ddClick.Parent = ddBtn
 
+                        -- ── DROPDOWN PANEL ───────────────────────────────────
             local panel = Instance.new("ScrollingFrame")
-            panel.Size = UDim2.new(0, 180, 0, 0)  -- fixed pixel width, not relative
-            panel.Position = UDim2.new(0, 0, 1, 6)  -- below ddBtn
+            panel.Size = UDim2.new(0, 180, 0, 0)
+            panel.Position = UDim2.new(0, 0, 1, 6)
             panel.BackgroundColor3 = Theme.DropdownBg
             panel.BorderSizePixel = 0
             panel.ClipsDescendants = true
@@ -1541,10 +1542,11 @@ function GluttonyUI:CreateWindow(options)
             panel.ScrollBarImageColor3 = Theme.Accent
             panel.ZIndex = 50
             panel.Visible = false
-            panel.Parent = ddBtn  -- keep parented to ddBtn
+            panel.Parent = ddBtn
             Corner(panel, UDim.new(0, 6))
             Stroke(panel, Theme.Accent, 1, 0.6)
 
+            -- ✅ Only ONE UIListLayout and ONE UIPadding:
             local panelLayout = Instance.new("UIListLayout")
             panelLayout.FillDirection = Enum.FillDirection.Vertical
             panelLayout.SortOrder = Enum.SortOrder.LayoutOrder
@@ -1628,28 +1630,28 @@ function GluttonyUI:CreateWindow(options)
                 if isOpen then
                     if activeDropdownPanel and activeDropdownPanel ~= panel then
                         activeDropdownPanel.Visible = false
-                        activeDropdownPanel.Size = UDim2.new(1, 0, 0, 0)
+                        activeDropdownPanel.Size = UDim2.new(0, 180, 0, 0)
                     end
                     activeDropdownPanel = panel
-                    
+
                     local targetH = BuildOptions()
                     panel.Visible = true
-                    Tween(panel, {Size = UDim2.new(0, 180, 0, targetH)}, 0.25)  -- pixel width
+                    Tween(panel, {Size = UDim2.new(0, 180, 0, targetH)}, 0.25)
                     Tween(arrowFrame, {Rotation = 180}, 0.25)
 
-                    -- And close:
-                    Tween(panel, {Size = UDim2.new(0, 180, 0, 0)}, 0.2)
+                    -- ✅ Auto-scroll if needed (NO close tween here)
                     task.defer(function()
-                        local rowBottom = (row.AbsolutePosition.Y - page.AbsolutePosition.Y) + page.CanvasPosition.Y + row.AbsoluteSize.Y
+                        local rowBottom = (row.AbsolutePosition.Y - page.AbsolutePosition.Y)
+                            + page.CanvasPosition.Y + row.AbsoluteSize.Y
                         local targetScroll = (rowBottom + targetH + 10) - page.AbsoluteWindowSize.Y
-                        
                         if targetScroll > page.CanvasPosition.Y then
                             Tween(page, {CanvasPosition = Vector2.new(0, targetScroll)}, 0.25)
                         end
                     end)
                 else
+                    -- ✅ Close tween is ONLY in the else block:
                     activeDropdownPanel = nil
-                    Tween(panel, {Size = UDim2.new(1, 0, 0, 0)}, 0.2)
+                    Tween(panel, {Size = UDim2.new(0, 180, 0, 0)}, 0.2)
                     Tween(arrowFrame, {Rotation = 0}, 0.2)
                     task.delay(0.2, function() panel.Visible = false end)
                 end
