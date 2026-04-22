@@ -1559,9 +1559,7 @@ function GluttonyUI:CreateWindow(options)
                 -- If dropdown would go below screen, open upward
                 local panelHeight = panel.AbsoluteSize.Y
                 local screenHeight = screenGui.AbsoluteSize.Y
-                if panelHeight > 0 and relY + panelHeight > screenHeight then
-                    relY = ddAbs.Y - panelHeight - 4
-                end
+
                 
                 return UDim2.new(0, relX, 0, relY)
             end
