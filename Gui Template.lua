@@ -1438,7 +1438,6 @@ function GluttonyUI:CreateWindow(options)
 
         -- ── DROPDOWN ─────────────────────────────────────────
         -- FIX: RegisterUpdater only updates visuals, NOT fires callback
-
         function Tab:AddDropdown(labelText, options, callback)
             local order = NextOrder()
             local isOpen = false
@@ -1457,8 +1456,8 @@ function GluttonyUI:CreateWindow(options)
             row.BackgroundColor3 = RowColor(order)
             row.BorderSizePixel = 0
             row.LayoutOrder = order
-            row.ZIndex = 10 -- Higher ZIndex so it overlaps rows below it
-            row.ClipsDescendants = false -- Must be false so the panel can leak out of the row
+            row.ZIndex = 10
+            row.ClipsDescendants = false
             row.Parent = page
             Corner(row, Theme.CornerRadius)
 
@@ -1532,17 +1531,16 @@ function GluttonyUI:CreateWindow(options)
             ddClick.ZIndex = 14
             ddClick.Parent = ddBtn
 
-            -- FIX: Parented directly to the Button. 
-            -- This makes it move 1:1 with the GUI with ZERO lag.
             local panel = Instance.new("ScrollingFrame")
             panel.Size = UDim2.new(1, 0, 0, 0)
+            -- Position will be set dynamically when opened
             panel.Position = UDim2.new(0, 0, 1, 4)
             panel.BackgroundColor3 = Theme.DropdownBg
             panel.BorderSizePixel = 0
             panel.ClipsDescendants = true
             panel.ScrollBarThickness = 3
             panel.ScrollBarImageColor3 = Theme.Accent
-            panel.ZIndex = 50 -- Very high to ensure it draws over other rows
+            panel.ZIndex = 50
             panel.Visible = false
             panel.Parent = ddBtn 
             Corner(panel, UDim.new(0, 6))
@@ -1595,6 +1593,22 @@ function GluttonyUI:CreateWindow(options)
                 return math.min(#options * 32 + 10, 160)
             end
 
+            -- ✅ FIX: Check if dropdown would overflow the GUI boundaries
+            local function CalculatePanelPosition(targetHeight)
+                -- Get the absolute position of the dropdown button
+                local btnBottomY = ddBtn.AbsolutePosition.Y + ddBtn.AbsoluteSize.Y
+                local guiBottomY = main.AbsolutePosition.Y + main.AbsoluteSize.Y
+                local availableSpaceBelow = guiBottomY - btnBottomY - 10 -- 10px padding
+                
+                if availableSpaceBelow >= targetHeight then
+                    -- Enough space below - show normally
+                    panel.Position = UDim2.new(0, 0, 1, 4)
+                else
+                    -- Not enough space below - show above
+                    panel.Position = UDim2.new(0, 0, -targetHeight - 4, 0)
+                end
+            end
+
             AddConnection(ddClick.MouseButton1Click:Connect(function()
                 isOpen = not isOpen
                 if isOpen then
@@ -1605,6 +1619,10 @@ function GluttonyUI:CreateWindow(options)
                     activeDropdownPanel = panel
                     
                     local targetH = BuildOptions()
+                    
+                    -- ✅ Calculate position BEFORE showing
+                    CalculatePanelPosition(targetH)
+                    
                     panel.Visible = true
                     Tween(panel, {Size = UDim2.new(1, 0, 0, targetH)}, 0.25)
                     Tween(arrowFrame, {Rotation = 180}, 0.25)
