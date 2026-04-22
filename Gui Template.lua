@@ -793,12 +793,8 @@ function GluttonyUI:CreateWindow(options)
         -- Close any open dropdown
         if activeDropdownPanel and activeDropdownPanel.Parent then
             activeDropdownPanel.Visible = false
-            activeDropdownPanel.Size = UDim2.new(0, 180, 0, 0)
+            activeDropdownPanel.Size = UDim2.new(0, 0, 0, 0)  -- ✅ absolute size now
             activeDropdownPanel = nil
-            -- Force all dropdowns closed
-            for _, pg in pairs(Window._pages) do
-                -- isOpen flags are local to each dropdown, panel.Visible = false is enough
-            end
         end
 
         Window._currentTab = tabName
@@ -1532,25 +1528,38 @@ function GluttonyUI:CreateWindow(options)
             ddClick.ZIndex = 14
             ddClick.Parent = ddBtn
 
-            -- FIX: Parented directly to the Button. 
-            -- This makes it move 1:1 with the GUI with ZERO lag.
+            -- REPLACE with: parent to content, calculate absolute position
+
             local panel = Instance.new("ScrollingFrame")
-            panel.Size = UDim2.new(1, 0, 0, 0)
-            panel.Position = UDim2.new(0, 0, 1, 4)
+            panel.Size = UDim2.new(0, 0, 0, 0)  -- sized absolutely below
             panel.BackgroundColor3 = Theme.DropdownBg
             panel.BorderSizePixel = 0
             panel.ClipsDescendants = true
             panel.ScrollBarThickness = 3
             panel.ScrollBarImageColor3 = Theme.Accent
-            panel.ZIndex = 50 -- Very high to ensure it draws over other rows
+            panel.ZIndex = 200  -- high enough to clear everything
             panel.Visible = false
-            panel.Parent = ddBtn 
+            panel.Parent = content  -- ✅ parent to content, not ddBtn
             Corner(panel, UDim.new(0, 6))
             Stroke(panel, Theme.Accent, 1, 0.6)
 
             local panelLayout = ListLayout(panel, 2)
             Padding(panel, 4, 4, 4, 4)
 
+            local function GetPanelPosition()
+                -- Get ddBtn's absolute position relative to content
+                local ddAbs = ddBtn.AbsolutePosition
+                local contentAbs = content.AbsolutePosition
+                local relX = ddAbs.X - contentAbs.X
+                local relY = ddAbs.Y - contentAbs.Y + ddBtn.AbsoluteSize.Y + 4
+                return UDim2.new(0, relX, 0, relY)
+            end
+
+            -- Also set the panel width to match ddBtn
+            local function GetPanelSize(targetH)
+                return UDim2.new(0, ddBtn.AbsoluteSize.X, 0, targetH)
+            end
+            
             ConfigManager:RegisterUpdater(labelText, function(val)
                 if type(val) == "string" then
                     selected = val
@@ -1578,6 +1587,8 @@ function GluttonyUI:CreateWindow(options)
                     optBtn.Parent = panel
                     Corner(optBtn, UDim.new(0, 5))
 
+                    -- Also update the option click inside BuildOptions():
+
                     AddConnection(optBtn.MouseButton1Click:Connect(function()
                         selected = opt
                         ConfigManager:Set(labelText, opt)
@@ -1585,7 +1596,7 @@ function GluttonyUI:CreateWindow(options)
                         ddLabel.TextColor3 = Theme.Text
                         isOpen = false
                         activeDropdownPanel = nil
-                        Tween(panel, {Size = UDim2.new(1, 0, 0, 0)}, 0.2)
+                        Tween(panel, {Size = GetPanelSize(0)}, 0.2)  -- ✅ use helper
                         Tween(arrowFrame, {Rotation = 0}, 0.2)
                         task.delay(0.2, function() panel.Visible = false end)
                         if callback then task.spawn(callback, opt) end
@@ -1600,17 +1611,21 @@ function GluttonyUI:CreateWindow(options)
                 if isOpen then
                     if activeDropdownPanel and activeDropdownPanel ~= panel then
                         activeDropdownPanel.Visible = false
-                        activeDropdownPanel.Size = UDim2.new(1, 0, 0, 0)
+                        activeDropdownPanel.Size = UDim2.new(0, 0, 0, 0)
                     end
                     activeDropdownPanel = panel
-                    
+
                     local targetH = BuildOptions()
+
+                    -- ✅ Calculate position fresh each time (handles scroll offset)
+                    panel.Position = GetPanelPosition()
+                    panel.Size = GetPanelSize(0)
                     panel.Visible = true
-                    Tween(panel, {Size = UDim2.new(1, 0, 0, targetH)}, 0.25)
+                    Tween(panel, {Size = GetPanelSize(targetH)}, 0.25)
                     Tween(arrowFrame, {Rotation = 180}, 0.25)
                 else
                     activeDropdownPanel = nil
-                    Tween(panel, {Size = UDim2.new(1, 0, 0, 0)}, 0.2)
+                    Tween(panel, {Size = GetPanelSize(0)}, 0.2)
                     Tween(arrowFrame, {Rotation = 0}, 0.2)
                     task.delay(0.2, function() panel.Visible = false end)
                 end
