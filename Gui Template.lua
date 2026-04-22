@@ -1532,8 +1532,8 @@ function GluttonyUI:CreateWindow(options)
             ddClick.Parent = ddBtn
 
             local panel = Instance.new("ScrollingFrame")
-            panel.Size = UDim2.new(1, 0, 0, 0)
-            panel.Position = UDim2.new(0, 0, 1, 4)
+            panel.Size = UDim2.new(0, 180, 0, 0)  -- fixed pixel width, not relative
+            panel.Position = UDim2.new(0, 0, 1, 6)  -- below ddBtn
             panel.BackgroundColor3 = Theme.DropdownBg
             panel.BorderSizePixel = 0
             panel.ClipsDescendants = true
@@ -1541,9 +1541,22 @@ function GluttonyUI:CreateWindow(options)
             panel.ScrollBarImageColor3 = Theme.Accent
             panel.ZIndex = 50
             panel.Visible = false
-            panel.Parent = ddBtn 
+            panel.Parent = ddBtn  -- keep parented to ddBtn
             Corner(panel, UDim.new(0, 6))
             Stroke(panel, Theme.Accent, 1, 0.6)
+
+            local panelLayout = Instance.new("UIListLayout")
+            panelLayout.FillDirection = Enum.FillDirection.Vertical
+            panelLayout.SortOrder = Enum.SortOrder.LayoutOrder
+            panelLayout.Padding = UDim.new(0, 2)
+            panelLayout.Parent = panel
+
+            local panelPadding = Instance.new("UIPadding")
+            panelPadding.PaddingTop = UDim.new(0, 4)
+            panelPadding.PaddingBottom = UDim.new(0, 4)
+            panelPadding.PaddingLeft = UDim.new(0, 4)
+            panelPadding.PaddingRight = UDim.new(0, 4)
+            panelPadding.Parent = panel
 
             local panelLayout = ListLayout(panel, 2)
             Padding(panel, 4, 4, 4, 4)
@@ -1562,7 +1575,7 @@ function GluttonyUI:CreateWindow(options)
                 end
                 for i, opt in ipairs(options) do
                     local optBtn = Instance.new("TextButton")
-                    optBtn.Size = UDim2.new(1, 0, 0, 30)
+                    optBtn.Size = UDim2.new(1, -8, 0, 28)  -- account for left+right padding
                     optBtn.BackgroundColor3 = (selected == opt) and Color3.fromRGB(40, 50, 65) or Theme.DropdownBg
                     optBtn.Text = opt
                     optBtn.TextColor3 = (selected == opt) and Theme.Accent or Theme.Text
@@ -1575,6 +1588,16 @@ function GluttonyUI:CreateWindow(options)
                     optBtn.Parent = panel
                     Corner(optBtn, UDim.new(0, 5))
 
+                    -- Hover effect on options
+                    optBtn.MouseEnter:Connect(function()
+                        if selected ~= opt then
+                            optBtn.BackgroundColor3 = Theme.DropdownHover
+                        end
+                    end)
+                    optBtn.MouseLeave:Connect(function()
+                        optBtn.BackgroundColor3 = (selected == opt) and Color3.fromRGB(40, 50, 65) or Theme.DropdownBg
+                    end)
+
                     AddConnection(optBtn.MouseButton1Click:Connect(function()
                         selected = opt
                         ConfigManager:Set(labelText, opt)
@@ -1582,14 +1605,22 @@ function GluttonyUI:CreateWindow(options)
                         ddLabel.TextColor3 = Theme.Text
                         isOpen = false
                         activeDropdownPanel = nil
-                        Tween(panel, {Size = UDim2.new(1, 0, 0, 0)}, 0.2)
+                        Tween(panel, {Size = UDim2.new(0, 180, 0, 0)}, 0.2)
                         Tween(arrowFrame, {Rotation = 0}, 0.2)
                         task.delay(0.2, function() panel.Visible = false end)
                         if callback then task.spawn(callback, opt) end
                     end))
                 end
-                panel.CanvasSize = UDim2.new(0, 0, 0, panelLayout.AbsoluteContentSize.Y + 10)
-                return math.min(#options * 32 + 10, 160)
+
+                -- Correct height: each item is 28px + 2px gap, minus last gap, plus 8px padding
+                local itemH = 28
+                local gapH = 2
+                local padH = 8
+                local totalH = (#options * (itemH + gapH)) - gapH + padH
+                local clampedH = math.min(totalH, 160)
+
+                panel.CanvasSize = UDim2.new(0, 0, 0, totalH)
+                return clampedH
             end
 
             AddConnection(ddClick.MouseButton1Click:Connect(function()
@@ -1603,11 +1634,11 @@ function GluttonyUI:CreateWindow(options)
                     
                     local targetH = BuildOptions()
                     panel.Visible = true
-                    Tween(panel, {Size = UDim2.new(1, 0, 0, targetH)}, 0.25)
+                    Tween(panel, {Size = UDim2.new(0, 180, 0, targetH)}, 0.25)  -- pixel width
                     Tween(arrowFrame, {Rotation = 180}, 0.25)
-                    
-                    -- ✅ AUTO-SCROLL: If the dropdown hits the bottom border, 
-                    -- scroll the page down smoothly so it stays inside the GUI.
+
+                    -- And close:
+                    Tween(panel, {Size = UDim2.new(0, 180, 0, 0)}, 0.2)
                     task.defer(function()
                         local rowBottom = (row.AbsolutePosition.Y - page.AbsolutePosition.Y) + page.CanvasPosition.Y + row.AbsoluteSize.Y
                         local targetScroll = (rowBottom + targetH + 10) - page.AbsoluteWindowSize.Y
