@@ -1438,6 +1438,8 @@ function GluttonyUI:CreateWindow(options)
 
         -- ── DROPDOWN ─────────────────────────────────────────
 
+        -- ── DROPDOWN ─────────────────────────────────────────
+
         function Tab:AddDropdown(labelText, options, callback)
             local order = NextOrder()
             local isOpen = false
@@ -1457,7 +1459,7 @@ function GluttonyUI:CreateWindow(options)
             row.BorderSizePixel = 0
             row.LayoutOrder = order
             row.ZIndex = 10
-            row.ClipsDescendants = false
+            row.ClipsDescendants = false -- Allow panel to overflow the row
             row.Parent = page
             Corner(row, Theme.CornerRadius)
 
@@ -1531,18 +1533,17 @@ function GluttonyUI:CreateWindow(options)
             ddClick.ZIndex = 14
             ddClick.Parent = ddBtn
 
-            -- ✅ FIX: Parent to screenGui to prevent clipping issues entirely
             local panel = Instance.new("ScrollingFrame")
-            panel.Size = UDim2.new(0, 0, 0, 0)
-            panel.Position = UDim2.new(0, 0, 0, 0)
+            panel.Size = UDim2.new(1, 0, 0, 0)
+            panel.Position = UDim2.new(0, 0, 1, 4)
             panel.BackgroundColor3 = Theme.DropdownBg
             panel.BorderSizePixel = 0
             panel.ClipsDescendants = true
             panel.ScrollBarThickness = 3
             panel.ScrollBarImageColor3 = Theme.Accent
-            panel.ZIndex = 100
+            panel.ZIndex = 50
             panel.Visible = false
-            panel.Parent = screenGui -- Bypasses all inner clipping boundaries
+            panel.Parent = ddBtn 
             Corner(panel, UDim.new(0, 6))
             Stroke(panel, Theme.Accent, 1, 0.6)
 
@@ -1556,8 +1557,6 @@ function GluttonyUI:CreateWindow(options)
                     ddLabel.TextColor3 = Theme.Text
                 end
             end)
-
-            local runServiceConn = nil
 
             local function BuildOptions()
                 for _, child in pairs(panel:GetChildren()) do
@@ -1574,7 +1573,7 @@ function GluttonyUI:CreateWindow(options)
                     optBtn.BorderSizePixel = 0
                     optBtn.AutoButtonColor = false
                     optBtn.LayoutOrder = i
-                    optBtn.ZIndex = 101
+                    optBtn.ZIndex = 51
                     optBtn.Parent = panel
                     Corner(optBtn, UDim.new(0, 5))
 
@@ -1585,9 +1584,7 @@ function GluttonyUI:CreateWindow(options)
                         ddLabel.TextColor3 = Theme.Text
                         isOpen = false
                         activeDropdownPanel = nil
-                        if runServiceConn then runServiceConn:Disconnect() end
-                        local curW = panel.AbsoluteSize.X
-                        Tween(panel, {Size = UDim2.new(0, curW, 0, 0)}, 0.2)
+                        Tween(panel, {Size = UDim2.new(1, 0, 0, 0)}, 0.2)
                         Tween(arrowFrame, {Rotation = 0}, 0.2)
                         task.delay(0.2, function() panel.Visible = false end)
                         if callback then task.spawn(callback, opt) end
@@ -1602,47 +1599,28 @@ function GluttonyUI:CreateWindow(options)
                 if isOpen then
                     if activeDropdownPanel and activeDropdownPanel ~= panel then
                         activeDropdownPanel.Visible = false
-                        activeDropdownPanel.Size = UDim2.new(0, 0, 0, 0)
+                        activeDropdownPanel.Size = UDim2.new(1, 0, 0, 0)
                     end
                     activeDropdownPanel = panel
                     
                     local targetH = BuildOptions()
-                    
-                    -- ✅ Calculate bounds strictly within the main window
-                    local btnAbsPos = ddBtn.AbsolutePosition
-                    local btnAbsSize = ddBtn.AbsoluteSize
-                    local guiBottomY = main.AbsolutePosition.Y + main.AbsoluteSize.Y
-                    local panelTopY = btnAbsPos.Y + btnAbsSize.Y + 4
-                    local maxAllowedH = guiBottomY - panelTopY - 10
-                    
-                    -- If it hits the bottom, shrink it neatly instead of flipping
-                    if maxAllowedH < targetH then
-                        targetH = math.max(maxAllowedH, 40)
-                    end
-                    
-                    panel.Position = UDim2.new(0, btnAbsPos.X, 0, panelTopY)
-                    panel.Size = UDim2.new(0, btnAbsSize.X, 0, 0)
                     panel.Visible = true
-                    
-                    Tween(panel, {Size = UDim2.new(0, btnAbsSize.X, 0, targetH)}, 0.25)
+                    Tween(panel, {Size = UDim2.new(1, 0, 0, targetH)}, 0.25)
                     Tween(arrowFrame, {Rotation = 180}, 0.25)
                     
-                    -- ✅ Keep dropdown attached to button if GUI is dragged while open
-                    if runServiceConn then runServiceConn:Disconnect() end
-                    runServiceConn = RunService.Heartbeat:Connect(function()
-                        if not isOpen or not panel or not panel.Parent then
-                            if runServiceConn then runServiceConn:Disconnect() end
-                            return
+                    -- ✅ AUTO-SCROLL: If the dropdown hits the bottom border, 
+                    -- scroll the page down smoothly so it stays inside the GUI.
+                    task.defer(function()
+                        local rowBottom = (row.AbsolutePosition.Y - page.AbsolutePosition.Y) + page.CanvasPosition.Y + row.AbsoluteSize.Y
+                        local targetScroll = (rowBottom + targetH + 10) - page.AbsoluteWindowSize.Y
+                        
+                        if targetScroll > page.CanvasPosition.Y then
+                            Tween(page, {CanvasPosition = Vector2.new(0, targetScroll)}, 0.25)
                         end
-                        local bPos = ddBtn.AbsolutePosition
-                        local bSize = ddBtn.AbsoluteSize
-                        panel.Position = UDim2.new(0, bPos.X, 0, bPos.Y + bSize.Y + 4)
                     end)
                 else
                     activeDropdownPanel = nil
-                    if runServiceConn then runServiceConn:Disconnect() end
-                    local curW = panel.AbsoluteSize.X
-                    Tween(panel, {Size = UDim2.new(0, curW, 0, 0)}, 0.2)
+                    Tween(panel, {Size = UDim2.new(1, 0, 0, 0)}, 0.2)
                     Tween(arrowFrame, {Rotation = 0}, 0.2)
                     task.delay(0.2, function() panel.Visible = false end)
                 end
