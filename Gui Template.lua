@@ -1,9 +1,9 @@
 --[[
 ═══════════════════════════════════════════════════════════════════════════
-   GLUTTONY UI LIBRARY v2.0
+   GLUTTONY UI LIBRARY v2.1
    Built-in: Thread Manager, Auto-Resume, Anti-AFK, Number Parsing,
              PriorityList, RadioSelect, MultiSelect, StatusButton,
-             NumberInput, Hint/Warning boxes
+             NumberInput, ThresholdRow, Hint/Warning, Dropdown Flip
 ═══════════════════════════════════════════════════════════════════════════
 ]]
 
@@ -165,7 +165,6 @@ function ThreadManager:IsRunning(key)
     return _threadRunning[key] == true
 end
 
--- Expose thread manager
 GluttonyUI.ThreadManager = ThreadManager
 
 -- ════════════════════════════════════════════════════════════════
@@ -179,7 +178,7 @@ ConfigManager._dirty      = false
 ConfigManager._saveThread = nil
 ConfigManager._debounce   = 1.5
 ConfigManager._uiUpdaters = {}
-ConfigManager._toggleMeta = {} -- stores {interval, callback} per toggle
+ConfigManager._toggleMeta = {}
 
 local function HasFileSupport()
     local ok, result = pcall(function()
@@ -569,15 +568,15 @@ local function CreateLogo(parent)
         ring.Parent = container
         Corner(ring, UDim.new(1, 0))
 
-        local inner = Instance.new("Frame")
-        inner.Size = UDim2.new(0, 18, 0, 18)
-        inner.AnchorPoint = Vector2.new(0.5, 0.5)
-        inner.Position = UDim2.new(0.5, 0, 0.5, 0)
-        inner.BackgroundColor3 = Theme.Accent
-        inner.BorderSizePixel = 0
-        inner.ZIndex = 13
-        inner.Parent = container
-        Corner(inner, UDim.new(1, 0))
+        local innerDot = Instance.new("Frame")
+        innerDot.Size = UDim2.new(0, 18, 0, 18)
+        innerDot.AnchorPoint = Vector2.new(0.5, 0.5)
+        innerDot.Position = UDim2.new(0.5, 0, 0.5, 0)
+        innerDot.BackgroundColor3 = Theme.Accent
+        innerDot.BorderSizePixel = 0
+        innerDot.ZIndex = 13
+        innerDot.Parent = container
+        Corner(innerDot, UDim.new(1, 0))
 
         local glow = Instance.new("Frame")
         glow.Size = UDim2.new(0, 10, 0, 10)
@@ -649,11 +648,9 @@ function GluttonyUI:CreateWindow(options)
     ConfigManager._uiUpdaters = {}
     ConfigManager._toggleMeta = {}
 
-    -- Init & load config
     ConfigManager:Init(configName)
     ConfigManager:Load()
 
-    -- Anti-AFK
     if antiAfk then StartAntiAFK() end
 
     -- ── SCREEN GUI ───────────────────────────────────────────
@@ -691,6 +688,7 @@ function GluttonyUI:CreateWindow(options)
     shadow.Parent = main
 
     local inner = Instance.new("Frame")
+    inner.Name = "Inner"
     inner.Size = UDim2.new(1, 0, 1, 0)
     inner.BackgroundTransparency = 1
     inner.ClipsDescendants = true
@@ -1020,7 +1018,6 @@ function GluttonyUI:CreateWindow(options)
 
         local pageLayout = ListLayout(page, 8)
 
-        -- Page title
         local titleFrame = Instance.new("Frame")
         titleFrame.Size = UDim2.new(1, 0, 0, 42)
         titleFrame.BackgroundTransparency = 1
@@ -1048,13 +1045,8 @@ function GluttonyUI:CreateWindow(options)
         underline.ZIndex = 8
         underline.Parent = titleFrame
         Corner(underline, UDim.new(1, 0))
-
         local ulGrad = Instance.new("UIGradient")
-        ulGrad.Transparency = NumberSequence.new({
-            NumberSequenceKeypoint.new(0, 0),
-            NumberSequenceKeypoint.new(0.7, 0),
-            NumberSequenceKeypoint.new(1, 1),
-        })
+        ulGrad.Transparency = NumberSequence.new({NumberSequenceKeypoint.new(0,0),NumberSequenceKeypoint.new(0.7,0),NumberSequenceKeypoint.new(1,1)})
         ulGrad.Parent = underline
 
         AddConnection(pageLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
@@ -1108,11 +1100,7 @@ function GluttonyUI:CreateWindow(options)
             Corner(sep, UDim.new(1, 0))
 
             local sepGrad = Instance.new("UIGradient")
-            sepGrad.Transparency = NumberSequence.new({
-                NumberSequenceKeypoint.new(0, 0),
-                NumberSequenceKeypoint.new(0.5, 0.3),
-                NumberSequenceKeypoint.new(1, 1),
-            })
+            sepGrad.Transparency = NumberSequence.new({NumberSequenceKeypoint.new(0,0),NumberSequenceKeypoint.new(0.5,0.3),NumberSequenceKeypoint.new(1,1)})
             sepGrad.Parent = sep
         end
 
@@ -1241,9 +1229,6 @@ function GluttonyUI:CreateWindow(options)
             local order = NextOrder()
             local interval, callback
 
-            -- Support both signatures:
-            -- AddToggle("name", false, callback)           -- no thread
-            -- AddToggle("name", false, 0.5, callback)      -- with thread
             if type(intervalOrCallback) == "function" then
                 interval = nil
                 callback = intervalOrCallback
@@ -1256,7 +1241,6 @@ function GluttonyUI:CreateWindow(options)
             local state = (saved ~= nil) and saved or (default or false)
             StateStore[labelText] = state
 
-            -- Store meta for auto-resume
             if interval and callback then
                 ConfigManager._toggleMeta[labelText] = {interval = interval, callback = callback}
             end
@@ -1318,9 +1302,7 @@ function GluttonyUI:CreateWindow(options)
             end
 
             ConfigManager:RegisterUpdater(labelText, function(val)
-                if type(val) == "boolean" then
-                    UpdateVisual(val)
-                end
+                if type(val) == "boolean" then UpdateVisual(val) end
             end)
 
             local function SetState(newState)
@@ -1329,19 +1311,15 @@ function GluttonyUI:CreateWindow(options)
                 Tween(toggleBg, {BackgroundColor3 = state and Theme.ToggleOn or Theme.ToggleOff}, 0.25)
                 Tween(circle, {Position = state and UDim2.new(1, -22, 0.5, -10) or UDim2.new(0, 2, 0.5, -10)}, 0.25, Enum.EasingStyle.Back)
                 Tween(circle, {Size = UDim2.new(0, 22, 0, 22)}, 0.08)
-                task.delay(0.08, function()
-                    Tween(circle, {Size = UDim2.new(0, 20, 0, 20)}, 0.12)
-                end)
+                task.delay(0.08, function() Tween(circle, {Size = UDim2.new(0, 20, 0, 20)}, 0.12) end)
 
                 if interval and callback then
-                    -- Thread-managed toggle
                     if state then
                         ThreadManager:Start(labelText, interval, callback)
                     else
                         ThreadManager:Stop(labelText)
                     end
                 elseif callback then
-                    -- Simple callback toggle
                     task.spawn(callback, state)
                 end
             end
@@ -1352,21 +1330,16 @@ function GluttonyUI:CreateWindow(options)
 
             SetupHover(row, RowColor(order), accentBar)
 
-            -- Auto-resume: if saved state was ON, start thread or fire callback
             if state then
                 if interval and callback then
-                    task.defer(function()
-                        ThreadManager:Start(labelText, interval, callback)
-                    end)
+                    task.defer(function() ThreadManager:Start(labelText, interval, callback) end)
                 elseif callback then
                     task.defer(callback, state)
                 end
             end
 
             return {
-                Set = function(_, val)
-                    SetState(val)
-                end,
+                Set = function(_, val) SetState(val) end,
                 Get = function() return state end,
             }
         end
@@ -1376,9 +1349,7 @@ function GluttonyUI:CreateWindow(options)
             local order = NextOrder()
 
             local saved = StateStore[labelText]
-            local value = (saved ~= nil and type(saved) == "number")
-                and math.clamp(saved, min, max)
-                or math.clamp(default or min, min, max)
+            local value = (saved ~= nil and type(saved) == "number") and math.clamp(saved, min, max) or math.clamp(default or min, min, max)
             StateStore[labelText] = value
 
             local row = Instance.new("Frame")
@@ -1455,7 +1426,6 @@ function GluttonyUI:CreateWindow(options)
             Stroke(knob, Theme.Shadow, 1, 0.75)
 
             local sliding = false
-
             local hitArea = Instance.new("TextButton")
             hitArea.Size = UDim2.new(1, 14, 1, 18)
             hitArea.Position = UDim2.new(0, -7, 0, -9)
@@ -1472,48 +1442,32 @@ function GluttonyUI:CreateWindow(options)
             end
 
             ConfigManager:RegisterUpdater(labelText, function(val)
-                if type(val) == "number" then
-                    val = math.clamp(val, min, max)
-                    value = val
-                    UpdateVisual(val)
-                end
+                if type(val) == "number" then val = math.clamp(val, min, max); value = val; UpdateVisual(val) end
             end)
 
             local function ProcessInput(input)
                 local x = math.clamp((input.Position.X - track.AbsolutePosition.X) / track.AbsoluteSize.X, 0, 1)
                 local v = math.floor(min + (max - min) * x)
-                value = v
-                ConfigManager:Set(labelText, v)
-                UpdateVisual(v)
+                value = v; ConfigManager:Set(labelText, v); UpdateVisual(v)
                 if callback then task.spawn(callback, v) end
             end
 
             AddConnection(hitArea.InputBegan:Connect(function(input)
                 if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-                    sliding = true
-                    ProcessInput(input)
+                    sliding = true; ProcessInput(input)
                 end
             end))
             AddConnection(hitArea.InputEnded:Connect(function(input)
-                if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-                    sliding = false
-                end
+                if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then sliding = false end
             end))
             AddConnection(UserInputService.InputChanged:Connect(function(input)
-                if sliding and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
-                    ProcessInput(input)
-                end
+                if sliding and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then ProcessInput(input) end
             end))
 
             SetupHover(row, RowColor(order), accentBar)
 
             return {
-                Set = function(_, val)
-                    val = math.clamp(val, min, max)
-                    value = val
-                    ConfigManager:Set(labelText, val)
-                    UpdateVisual(val)
-                end,
+                Set = function(_, val) val = math.clamp(val, min, max); value = val; ConfigManager:Set(labelText, val); UpdateVisual(val) end,
                 Get = function() return value end,
             }
         end
@@ -1521,7 +1475,6 @@ function GluttonyUI:CreateWindow(options)
         -- ── BUTTON ───────────────────────────────────────────
         function Tab:AddButton(labelText, callback)
             local order = NextOrder()
-
             local row = Instance.new("Frame")
             row.Size = UDim2.new(1, 0, 0, Theme.RowHeight)
             row.BackgroundColor3 = RowColor(order)
@@ -1589,9 +1542,7 @@ function GluttonyUI:CreateWindow(options)
             end))
             AddConnection(button.MouseButton1Click:Connect(function()
                 Tween(button, {Size = UDim2.new(1, -6, 1, -4)}, 0.06)
-                task.delay(0.06, function()
-                    Tween(button, {Size = UDim2.new(1, -2, 1, -2)}, 0.1, Enum.EasingStyle.Back)
-                end)
+                task.delay(0.06, function() Tween(button, {Size = UDim2.new(1, -2, 1, -2)}, 0.1, Enum.EasingStyle.Back) end)
                 if callback then task.spawn(callback) end
             end))
 
@@ -1601,7 +1552,6 @@ function GluttonyUI:CreateWindow(options)
         -- ── STATUS BUTTON ────────────────────────────────────
         function Tab:AddStatusButton(labelText, callback)
             local order = NextOrder()
-
             local row = Instance.new("Frame")
             row.Size = UDim2.new(1, 0, 0, Theme.RowHeight)
             row.BackgroundColor3 = RowColor(order)
@@ -1692,24 +1642,16 @@ function GluttonyUI:CreateWindow(options)
             end
 
             AddConnection(button.MouseEnter:Connect(function()
-                if not busy then
-                    Tween(button, {BackgroundColor3 = Theme.AccentLight}, 0.15)
-                    Tween(glowStroke, {Transparency = 0.5}, 0.2)
-                end
+                if not busy then Tween(button, {BackgroundColor3 = Theme.AccentLight}, 0.15); Tween(glowStroke, {Transparency = 0.5}, 0.2) end
             end))
             AddConnection(button.MouseLeave:Connect(function()
-                if not busy then
-                    Tween(button, {BackgroundColor3 = Theme.Accent}, 0.15)
-                    Tween(glowStroke, {Transparency = 1}, 0.2)
-                end
+                if not busy then Tween(button, {BackgroundColor3 = Theme.Accent}, 0.15); Tween(glowStroke, {Transparency = 1}, 0.2) end
             end))
             AddConnection(button.MouseButton1Click:Connect(function()
                 if busy then return end
                 busy = true
                 Tween(button, {Size = UDim2.new(1, -6, 1, -4)}, 0.06)
-                task.delay(0.06, function()
-                    Tween(button, {Size = UDim2.new(1, -2, 1, -2)}, 0.1, Enum.EasingStyle.Back)
-                end)
+                task.delay(0.06, function() Tween(button, {Size = UDim2.new(1, -2, 1, -2)}, 0.1, Enum.EasingStyle.Back) end)
                 if callback then task.spawn(callback, SetStatus) end
             end))
 
@@ -1719,7 +1661,6 @@ function GluttonyUI:CreateWindow(options)
         -- ── INPUT ────────────────────────────────────────────
         function Tab:AddInput(labelText, placeholder, callback)
             local order = NextOrder()
-
             local saved = StateStore[labelText]
             local currentText = (saved ~= nil and type(saved) == "string") and saved or ""
             StateStore[labelText] = currentText
@@ -1778,9 +1719,7 @@ function GluttonyUI:CreateWindow(options)
                 if type(val) == "string" then input.Text = val end
             end)
 
-            AddConnection(input.Focused:Connect(function()
-                Tween(glowStroke, {Transparency = 0.4}, 0.2)
-            end))
+            AddConnection(input.Focused:Connect(function() Tween(glowStroke, {Transparency = 0.4}, 0.2) end))
             AddConnection(input.FocusLost:Connect(function(enterPressed)
                 Tween(glowStroke, {Transparency = 1}, 0.2)
                 ConfigManager:Set(labelText, input.Text)
@@ -1788,17 +1727,12 @@ function GluttonyUI:CreateWindow(options)
             end))
 
             SetupHover(row, RowColor(order), accentBar)
-
-            return {
-                Set = function(_, val) input.Text = val; ConfigManager:Set(labelText, val) end,
-                Get = function() return input.Text end,
-            }
+            return { Set = function(_, val) input.Text = val; ConfigManager:Set(labelText, val) end, Get = function() return input.Text end }
         end
 
-        -- ── NUMBER INPUT (with suffix parsing) ───────────────
+        -- ── NUMBER INPUT ─────────────────────────────────────
         function Tab:AddNumberInput(labelText, default, callback)
             local order = NextOrder()
-
             local saved = StateStore[labelText]
             local value = (saved ~= nil and type(saved) == "number") and saved or (default or 0)
             StateStore[labelText] = value
@@ -1854,37 +1788,268 @@ function GluttonyUI:CreateWindow(options)
             input.Parent = inputBg
 
             ConfigManager:RegisterUpdater(labelText, function(val)
-                if type(val) == "number" then
-                    value = val
-                    input.Text = val > 0 and GluttonyUI.FormatNumber(val) or "0"
-                end
+                if type(val) == "number" then value = val; input.Text = val > 0 and GluttonyUI.FormatNumber(val) or "0" end
             end)
 
-            AddConnection(input.Focused:Connect(function()
-                Tween(glowStroke, {Transparency = 0.4}, 0.2)
-            end))
+            AddConnection(input.Focused:Connect(function() Tween(glowStroke, {Transparency = 0.4}, 0.2) end))
             AddConnection(input.FocusLost:Connect(function()
                 Tween(glowStroke, {Transparency = 1}, 0.2)
                 local parsed = GluttonyUI.ParseNumber(input.Text)
-                value = parsed
-                ConfigManager:Set(labelText, parsed)
+                value = parsed; ConfigManager:Set(labelText, parsed)
                 input.Text = parsed > 0 and GluttonyUI.FormatNumber(parsed) or "0"
                 if callback then task.spawn(callback, parsed) end
             end))
 
             SetupHover(row, RowColor(order), accentBar)
-
             return {
-                Set = function(_, val)
-                    value = val
-                    ConfigManager:Set(labelText, val)
-                    input.Text = val > 0 and GluttonyUI.FormatNumber(val) or "0"
-                end,
+                Set = function(_, val) value = val; ConfigManager:Set(labelText, val); input.Text = val > 0 and GluttonyUI.FormatNumber(val) or "0" end,
                 Get = function() return value end,
             }
         end
 
-        -- ── DROPDOWN ─────────────────────────────────────────
+        -- ── THRESHOLD ROW (Toggle + NumberInput + StatusButton in one row) ──
+        function Tab:AddThresholdRow(labelText, opts)
+            opts = opts or {}
+            local order = NextOrder()
+            local threshDefault = opts.Default or 0
+            local interval      = opts.Interval or 1
+            local buttonText    = opts.ButtonText or "Sell"
+            local onLoop        = opts.OnLoop
+            local onButton      = opts.OnButton
+
+            local toggleKey = labelText .. "_enabled"
+            local threshKey = labelText .. "_threshold"
+
+            -- Restore saved
+            local savedToggle = StateStore[toggleKey]
+            local toggleState = (savedToggle ~= nil) and savedToggle or false
+            StateStore[toggleKey] = toggleState
+
+            local savedThresh = StateStore[threshKey]
+            local threshValue = (savedThresh ~= nil and type(savedThresh) == "number") and savedThresh or threshDefault
+            StateStore[threshKey] = threshValue
+
+            -- Row (taller for 3 elements)
+            local row = Instance.new("Frame")
+            row.Size = UDim2.new(1, 0, 0, 56)
+            row.BackgroundColor3 = RowColor(order)
+            row.BorderSizePixel = 0
+            row.LayoutOrder = order
+            row.ZIndex = 6
+            row.ClipsDescendants = true
+            row.Parent = page
+            Corner(row, Theme.CornerRadius)
+            Stroke(row, Theme.Border, 1, 0.5)
+
+            local accentBar = HoverAccent(row)
+
+            -- Label
+            local lbl = Instance.new("TextLabel")
+            lbl.Size = UDim2.new(0, 90, 1, 0)
+            lbl.Position = UDim2.new(0, 18, 0, 0)
+            lbl.BackgroundTransparency = 1
+            lbl.Text = labelText
+            lbl.TextColor3 = Theme.Text
+            lbl.TextSize = 14
+            lbl.Font = Theme.Font
+            lbl.TextXAlignment = Enum.TextXAlignment.Left
+            lbl.ZIndex = 7
+            lbl.Parent = row
+
+            -- Toggle
+            local toggleBg = Instance.new("Frame")
+            toggleBg.Size = UDim2.new(0, 42, 0, 22)
+            toggleBg.Position = UDim2.new(0, 110, 0.5, -11)
+            toggleBg.BackgroundColor3 = toggleState and Theme.ToggleOn or Theme.ToggleOff
+            toggleBg.BorderSizePixel = 0
+            toggleBg.ZIndex = 8
+            toggleBg.Parent = row
+            Corner(toggleBg, UDim.new(1, 0))
+
+            local toggleCircle = Instance.new("Frame")
+            toggleCircle.Size = UDim2.new(0, 18, 0, 18)
+            toggleCircle.Position = toggleState and UDim2.new(1, -20, 0.5, -9) or UDim2.new(0, 2, 0.5, -9)
+            toggleCircle.BackgroundColor3 = Theme.Text
+            toggleCircle.BorderSizePixel = 0
+            toggleCircle.ZIndex = 9
+            toggleCircle.Parent = toggleBg
+            Corner(toggleCircle, UDim.new(1, 0))
+            Stroke(toggleCircle, Theme.Shadow, 1, 0.7)
+
+            local toggleBtn = Instance.new("TextButton")
+            toggleBtn.Size = UDim2.new(1, 0, 1, 0)
+            toggleBtn.BackgroundTransparency = 1
+            toggleBtn.Text = ""
+            toggleBtn.ZIndex = 10
+            toggleBtn.Parent = toggleBg
+
+            -- Threshold input
+            local threshBg = Instance.new("Frame")
+            threshBg.Size = UDim2.new(0, 80, 0, 30)
+            threshBg.Position = UDim2.new(0, 164, 0.5, -15)
+            threshBg.BackgroundColor3 = Theme.InputBg
+            threshBg.BorderSizePixel = 0
+            threshBg.ZIndex = 8
+            threshBg.Parent = row
+            Corner(threshBg, UDim.new(0, 6))
+
+            local threshGlow = Stroke(threshBg, Theme.Accent, 1.5, 1)
+
+            local threshInput = Instance.new("TextBox")
+            threshInput.Size = UDim2.new(1, -12, 1, 0)
+            threshInput.Position = UDim2.new(0, 6, 0, 0)
+            threshInput.BackgroundTransparency = 1
+            threshInput.Text = threshValue > 0 and GluttonyUI.FormatNumber(threshValue) or "0"
+            threshInput.PlaceholderText = "e.g. 5M"
+            threshInput.PlaceholderColor3 = Theme.TextDim
+            threshInput.TextColor3 = Theme.Text
+            threshInput.TextSize = 13
+            threshInput.Font = Theme.FontLight
+            threshInput.ClearTextOnFocus = false
+            threshInput.TextXAlignment = Enum.TextXAlignment.Center
+            threshInput.ZIndex = 9
+            threshInput.Parent = threshBg
+
+            AddConnection(threshInput.Focused:Connect(function() Tween(threshGlow, {Transparency = 0.4}, 0.2) end))
+            AddConnection(threshInput.FocusLost:Connect(function()
+                Tween(threshGlow, {Transparency = 1}, 0.2)
+                local parsed = GluttonyUI.ParseNumber(threshInput.Text)
+                threshValue = parsed
+                ConfigManager:Set(threshKey, parsed)
+                threshInput.Text = parsed > 0 and GluttonyUI.FormatNumber(parsed) or "0"
+                -- Restart thread if running with new threshold
+                if toggleState and onLoop then
+                    ThreadManager:Start(toggleKey, interval, function() onLoop(threshValue) end)
+                end
+            end))
+
+            -- Action button
+            local actionFrame = Instance.new("Frame")
+            actionFrame.Size = UDim2.new(0, 72, 0, 32)
+            actionFrame.Position = UDim2.new(1, -86, 0.5, -16)
+            actionFrame.BackgroundTransparency = 1
+            actionFrame.ZIndex = 7
+            actionFrame.Parent = row
+
+            local actionShadow = Instance.new("Frame")
+            actionShadow.Size = UDim2.new(1, 2, 1, 2)
+            actionShadow.Position = UDim2.new(0, -1, 0, 2)
+            actionShadow.BackgroundColor3 = Theme.Shadow
+            actionShadow.BackgroundTransparency = 0.82
+            actionShadow.BorderSizePixel = 0
+            actionShadow.ZIndex = 7
+            actionShadow.Parent = actionFrame
+            Corner(actionShadow, UDim.new(0, 6))
+
+            local actionBtn = Instance.new("TextButton")
+            actionBtn.Size = UDim2.new(1, -2, 1, -2)
+            actionBtn.Position = UDim2.new(0, 1, 0, 0)
+            actionBtn.BackgroundColor3 = Color3.fromRGB(200, 30, 30)
+            actionBtn.Text = buttonText
+            actionBtn.TextColor3 = Theme.Text
+            actionBtn.TextSize = 13
+            actionBtn.Font = Theme.Font
+            actionBtn.BorderSizePixel = 0
+            actionBtn.AutoButtonColor = false
+            actionBtn.ZIndex = 8
+            actionBtn.Parent = actionFrame
+            Corner(actionBtn, UDim.new(0, 6))
+
+            local actionGlow = Stroke(actionBtn, Color3.fromRGB(200, 30, 30), 1.5, 0.6)
+            local actionBusy = false
+
+            local function SetActionStatus(statusType, msg)
+                if statusType == "loading" then
+                    actionBtn.Text = "..."
+                    Tween(actionBtn, {BackgroundColor3 = Color3.fromRGB(100, 100, 100)}, 0.15)
+                elseif statusType == "success" then
+                    actionBtn.Text = "✅ " .. (msg or "")
+                    Tween(actionBtn, {BackgroundColor3 = Theme.NotifSuccess}, 0.2)
+                    task.delay(1.5, function()
+                        if actionBtn and actionBtn.Parent then
+                            actionBtn.Text = buttonText
+                            Tween(actionBtn, {BackgroundColor3 = Color3.fromRGB(200, 30, 30)}, 0.2)
+                            actionBusy = false
+                        end
+                    end)
+                elseif statusType == "error" then
+                    actionBtn.Text = "❌"
+                    Tween(actionBtn, {BackgroundColor3 = Theme.NotifError}, 0.2)
+                    task.delay(1.5, function()
+                        if actionBtn and actionBtn.Parent then
+                            actionBtn.Text = buttonText
+                            Tween(actionBtn, {BackgroundColor3 = Color3.fromRGB(200, 30, 30)}, 0.2)
+                            actionBusy = false
+                        end
+                    end)
+                else
+                    actionBtn.Text = buttonText
+                    Tween(actionBtn, {BackgroundColor3 = Color3.fromRGB(200, 30, 30)}, 0.2)
+                    actionBusy = false
+                end
+            end
+
+            AddConnection(actionBtn.MouseEnter:Connect(function()
+                if not actionBusy then Tween(actionBtn, {BackgroundColor3 = Color3.fromRGB(220, 50, 50)}, 0.15) end
+            end))
+            AddConnection(actionBtn.MouseLeave:Connect(function()
+                if not actionBusy then Tween(actionBtn, {BackgroundColor3 = Color3.fromRGB(200, 30, 30)}, 0.15) end
+            end))
+            AddConnection(actionBtn.MouseButton1Click:Connect(function()
+                if actionBusy then return end
+                actionBusy = true
+                Tween(actionBtn, {Size = UDim2.new(1, -6, 1, -4)}, 0.06)
+                task.delay(0.06, function() Tween(actionBtn, {Size = UDim2.new(1, -2, 1, -2)}, 0.1, Enum.EasingStyle.Back) end)
+                if onButton then task.spawn(onButton, threshValue, SetActionStatus) end
+            end))
+
+            -- Toggle logic
+            AddConnection(toggleBtn.MouseButton1Click:Connect(function()
+                toggleState = not toggleState
+                ConfigManager:Set(toggleKey, toggleState)
+
+                Tween(toggleBg, {BackgroundColor3 = toggleState and Theme.ToggleOn or Theme.ToggleOff}, 0.25)
+                Tween(toggleCircle, {Position = toggleState and UDim2.new(1, -20, 0.5, -9) or UDim2.new(0, 2, 0.5, -9)}, 0.25, Enum.EasingStyle.Back)
+                Tween(toggleCircle, {Size = UDim2.new(0, 20, 0, 20)}, 0.08)
+                task.delay(0.08, function() Tween(toggleCircle, {Size = UDim2.new(0, 18, 0, 18)}, 0.12) end)
+
+                if toggleState then
+                    if threshValue <= 0 then
+                        toggleState = false
+                        ConfigManager:Set(toggleKey, false)
+                        Tween(toggleBg, {BackgroundColor3 = Theme.ToggleOff}, 0.2)
+                        Tween(toggleCircle, {Position = UDim2.new(0, 2, 0.5, -9)}, 0.2)
+                        return
+                    end
+                    if onLoop then
+                        ThreadManager:Start(toggleKey, interval, function() onLoop(threshValue) end)
+                    end
+                else
+                    ThreadManager:Stop(toggleKey)
+                end
+            end))
+
+            SetupHover(row, RowColor(order), accentBar)
+
+            -- Auto-resume
+            if toggleState and threshValue > 0 and onLoop then
+                task.defer(function()
+                    ThreadManager:Start(toggleKey, interval, function() onLoop(threshValue) end)
+                end)
+            end
+
+            return {
+                GetThreshold = function() return threshValue end,
+                GetToggle = function() return toggleState end,
+                SetThreshold = function(_, val)
+                    threshValue = val
+                    ConfigManager:Set(threshKey, val)
+                    threshInput.Text = val > 0 and GluttonyUI.FormatNumber(val) or "0"
+                end,
+            }
+        end
+
+        -- ── DROPDOWN (with flip support) ─────────────────────
         function Tab:AddDropdown(labelText, options, callback)
             local order = NextOrder()
             local isOpen = false
@@ -1994,24 +2159,39 @@ function GluttonyUI:CreateWindow(options)
             local panelLayout = ListLayout(panel, 2)
             Padding(panel, 4, 4, 4, 4)
 
-            local function GetPanelPosition()
+            local trackingConnection = nil
+            local flippedUp = false
+
+            local function GetPanelPosition(targetH)
                 local ddAbs = ddBtn.AbsolutePosition
                 local ddSize = ddBtn.AbsoluteSize
                 local innerAbs = inner.AbsolutePosition
-                return UDim2.new(0, ddAbs.X - innerAbs.X, 0, ddAbs.Y - innerAbs.Y + ddSize.Y + 4)
+                local innerSize = inner.AbsoluteSize
+
+                local relX = ddAbs.X - innerAbs.X
+                local relYBelow = ddAbs.Y - innerAbs.Y + ddSize.Y + 4
+                local relYAbove = ddAbs.Y - innerAbs.Y - targetH - 4
+
+                -- Check if dropdown goes below the inner frame
+                local bottomEdge = relYBelow + targetH
+                if bottomEdge > innerSize.Y and relYAbove >= 0 then
+                    flippedUp = true
+                    return UDim2.new(0, relX, 0, relYAbove)
+                else
+                    flippedUp = false
+                    return UDim2.new(0, relX, 0, relYBelow)
+                end
             end
 
             local function GetPanelSize(targetH)
                 return UDim2.new(0, ddBtn.AbsoluteSize.X, 0, targetH)
             end
 
-            local trackingConnection = nil
-
-            local function StartTrackingPosition()
+            local function StartTrackingPosition(targetH)
                 if trackingConnection then return end
                 trackingConnection = RunService.Heartbeat:Connect(function()
                     if isOpen and panel.Visible then
-                        panel.Position = GetPanelPosition()
+                        panel.Position = GetPanelPosition(targetH)
                     end
                 end)
             end
@@ -2024,12 +2204,10 @@ function GluttonyUI:CreateWindow(options)
             end
 
             ConfigManager:RegisterUpdater(labelText, function(val)
-                if type(val) == "string" then
-                    selected = val
-                    ddLabel.Text = val
-                    ddLabel.TextColor3 = Theme.Text
-                end
+                if type(val) == "string" then selected = val; ddLabel.Text = val; ddLabel.TextColor3 = Theme.Text end
             end)
+
+            local currentTargetH = 0
 
             local function BuildOptions()
                 for _, child in pairs(panel:GetChildren()) do
@@ -2065,7 +2243,8 @@ function GluttonyUI:CreateWindow(options)
                     end))
                 end
                 panel.CanvasSize = UDim2.new(0, 0, 0, panelLayout.AbsoluteContentSize.Y + 10)
-                return math.min(#options * 32 + 10, 160)
+                currentTargetH = math.min(#options * 32 + 10, 160)
+                return currentTargetH
             end
 
             AddConnection(ddClick.MouseButton1Click:Connect(function()
@@ -2077,12 +2256,12 @@ function GluttonyUI:CreateWindow(options)
                     end
                     activeDropdownPanel = panel
                     local targetH = BuildOptions()
-                    panel.Position = GetPanelPosition()
+                    panel.Position = GetPanelPosition(targetH)
                     panel.Size = GetPanelSize(0)
                     panel.Visible = true
                     Tween(panel, {Size = GetPanelSize(targetH)}, 0.25)
-                    Tween(arrowFrame, {Rotation = 180}, 0.25)
-                    StartTrackingPosition()
+                    Tween(arrowFrame, {Rotation = flippedUp and 0 or 180}, 0.25)
+                    StartTrackingPosition(targetH)
                 else
                     activeDropdownPanel = nil
                     StopTrackingPosition()
@@ -2097,24 +2276,15 @@ function GluttonyUI:CreateWindow(options)
             if selected and callback then task.defer(callback, selected) end
 
             return {
-                Set = function(_, val)
-                    selected = val
-                    ConfigManager:Set(labelText, val)
-                    ddLabel.Text = val or "Select..."
-                    ddLabel.TextColor3 = val and Theme.Text or Theme.TextDim
-                end,
+                Set = function(_, val) selected = val; ConfigManager:Set(labelText, val); ddLabel.Text = val or "Select..."; ddLabel.TextColor3 = val and Theme.Text or Theme.TextDim end,
                 Get = function() return selected end,
-                Refresh = function(_, newOptions)
-                    options = newOptions
-                    if isOpen then BuildOptions() end
-                end,
+                Refresh = function(_, newOptions) options = newOptions; if isOpen then BuildOptions() end end,
             }
         end
 
         -- ── RADIO SELECT ─────────────────────────────────────
         function Tab:AddRadioSelect(labelText, radioOptions, callback)
             local order = NextOrder()
-
             local saved = StateStore[labelText]
             local selected = saved or (radioOptions[1] and radioOptions[1].Name) or nil
             StateStore[labelText] = selected
@@ -2135,7 +2305,6 @@ function GluttonyUI:CreateWindow(options)
             for i, opt in ipairs(radioOptions) do
                 local optColor = opt.Color or Theme.Accent
                 local optFrame = Instance.new("Frame")
-                optFrame.Name = "Radio_" .. opt.Name
                 optFrame.Size = UDim2.new(1, -16, 0, 50)
                 optFrame.Position = UDim2.new(0, 8, 0, 8 + (i - 1) * 58)
                 optFrame.BackgroundColor3 = (selected == opt.Name) and Color3.fromRGB(35, 50, 40) or Theme.Row
@@ -2196,11 +2365,7 @@ function GluttonyUI:CreateWindow(options)
                 optBtn.ZIndex = 10
                 optBtn.Parent = optFrame
 
-                radioFrames[opt.Name] = {
-                    Frame = optFrame, Stroke = optStroke,
-                    Radio = radio, RadioInner = radioInner,
-                    Color = optColor, Btn = optBtn,
-                }
+                radioFrames[opt.Name] = {Frame = optFrame, Stroke = optStroke, Radio = radio, RadioInner = radioInner, Color = optColor}
 
                 AddConnection(optBtn.MouseButton1Click:Connect(function()
                     selected = opt.Name
@@ -2233,17 +2398,11 @@ function GluttonyUI:CreateWindow(options)
                 if type(val) == "string" and radioFrames[val] then
                     selected = val
                     for oName, rf in pairs(radioFrames) do
-                        if oName == val then
-                            rf.Frame.BackgroundColor3 = Color3.fromRGB(35, 50, 40)
-                            rf.Radio.BackgroundColor3 = rf.Color
-                            rf.RadioInner.BackgroundTransparency = 0
-                            rf.Stroke.Transparency = 0.3
-                        else
-                            rf.Frame.BackgroundColor3 = Theme.Row
-                            rf.Radio.BackgroundColor3 = Theme.ToggleOff
-                            rf.RadioInner.BackgroundTransparency = 1
-                            rf.Stroke.Transparency = 1
-                        end
+                        local isSelected = oName == val
+                        rf.Frame.BackgroundColor3 = isSelected and Color3.fromRGB(35, 50, 40) or Theme.Row
+                        rf.Radio.BackgroundColor3 = isSelected and rf.Color or Theme.ToggleOff
+                        rf.RadioInner.BackgroundTransparency = isSelected and 0 or 1
+                        rf.Stroke.Transparency = isSelected and 0.3 or 1
                     end
                 end
             end)
@@ -2256,10 +2415,9 @@ function GluttonyUI:CreateWindow(options)
             }
         end
 
-        -- ── PRIORITY LIST (reorderable) ──────────────────────
+        -- ── PRIORITY LIST ────────────────────────────────────
         function Tab:AddPriorityList(labelText, items, callback)
             local order = NextOrder()
-
             local saved = StateStore[labelText]
             local list = (saved and type(saved) == "table") and saved or items
             StateStore[labelText] = list
@@ -2298,9 +2456,7 @@ function GluttonyUI:CreateWindow(options)
             local rowElements = {}
 
             local function RebuildRows()
-                for _, r in ipairs(rowElements) do
-                    if r and r.Parent then r:Destroy() end
-                end
+                for _, r in ipairs(rowElements) do if r and r.Parent then r:Destroy() end end
                 rowElements = {}
 
                 for rank, item in ipairs(list) do
@@ -2376,17 +2532,14 @@ function GluttonyUI:CreateWindow(options)
 
                     AddConnection(upBtn.MouseButton1Click:Connect(function()
                         if rank <= 1 then return end
-                        list[rank], list[rank - 1] = list[rank - 1], list[rank]
-                        ConfigManager:Set(labelText, list)
-                        RebuildRows()
+                        list[rank], list[rank-1] = list[rank-1], list[rank]
+                        ConfigManager:Set(labelText, list); RebuildRows()
                         if callback then task.spawn(callback, list) end
                     end))
-
                     AddConnection(downBtn.MouseButton1Click:Connect(function()
                         if rank >= #list then return end
-                        list[rank], list[rank + 1] = list[rank + 1], list[rank]
-                        ConfigManager:Set(labelText, list)
-                        RebuildRows()
+                        list[rank], list[rank+1] = list[rank+1], list[rank]
+                        ConfigManager:Set(labelText, list); RebuildRows()
                         if callback then task.spawn(callback, list) end
                     end))
 
@@ -2395,22 +2548,16 @@ function GluttonyUI:CreateWindow(options)
                     AddConnection(downBtn.MouseEnter:Connect(function() Tween(downBtn, {BackgroundColor3 = Theme.Hover}, 0.1) end))
                     AddConnection(downBtn.MouseLeave:Connect(function() Tween(downBtn, {BackgroundColor3 = Theme.SliderBg}, 0.1) end))
                 end
-
                 containerFrame.Size = UDim2.new(1, 0, 0, #list * 40 + 16)
             end
 
             RebuildRows()
-
-            return {
-                Get = function() return list end,
-                Set = function(_, newList) list = newList; ConfigManager:Set(labelText, list); RebuildRows() end,
-            }
+            return { Get = function() return list end, Set = function(_, newList) list = newList; ConfigManager:Set(labelText, list); RebuildRows() end }
         end
 
-        -- ── MULTI SELECT (toggleable item list with search) ──
+        -- ── MULTI SELECT ─────────────────────────────────────
         function Tab:AddMultiSelect(labelText, items, callback)
             local order = NextOrder()
-
             local configKey = "_multiselect_" .. labelText
             local saved = StateStore[configKey]
             local selected = (saved and type(saved) == "table") and saved or {}
@@ -2439,7 +2586,6 @@ function GluttonyUI:CreateWindow(options)
             Corner(containerFrame, Theme.CornerRadius)
             Stroke(containerFrame, Theme.Border, 1, 0.3)
 
-            -- Header with search
             local header = Instance.new("Frame")
             header.Size = UDim2.new(1, 0, 0, 46)
             header.BackgroundColor3 = Theme.Sidebar
@@ -2524,7 +2670,6 @@ function GluttonyUI:CreateWindow(options)
 
             local itemRows = {}
 
-            -- items can be strings or {Name, Rarity, CPS, ...}
             for i, item in ipairs(items) do
                 local itemName = (type(item) == "table") and item.Name or tostring(item)
                 local isOn = selected[itemName] == true
@@ -2581,11 +2726,7 @@ function GluttonyUI:CreateWindow(options)
 
                 AddConnection(toggleBtn.MouseButton1Click:Connect(function()
                     local nowOn = not (selected[itemName] == true)
-                    if nowOn then
-                        selected[itemName] = true
-                    else
-                        selected[itemName] = nil
-                    end
+                    if nowOn then selected[itemName] = true else selected[itemName] = nil end
                     ConfigManager:Set(configKey, selected)
                     Tween(toggleBg, {BackgroundColor3 = nowOn and Theme.Accent or Theme.ProtectedOff}, 0.25)
                     Tween(toggleCircle, {Position = nowOn and UDim2.new(1, -20, 0.5, -9) or UDim2.new(0, 2, 0.5, -9)}, 0.25, Enum.EasingStyle.Back)
@@ -2604,7 +2745,6 @@ function GluttonyUI:CreateWindow(options)
             end))
             scrollFrame.CanvasSize = UDim2.new(0, 0, 0, scrollLayout.AbsoluteContentSize.Y + 16)
 
-            -- Search filter
             AddConnection(searchInput:GetPropertyChangedSignal("Text"):Connect(function()
                 local filter = searchInput.Text:lower()
                 local visOrder = 1
@@ -2614,24 +2754,17 @@ function GluttonyUI:CreateWindow(options)
                     if rd then
                         local visible = filter == "" or itemName:lower():find(filter, 1, true)
                         rd.Frame.Visible = visible
-                        if visible then
-                            rd.Frame.LayoutOrder = visOrder
-                            visOrder = visOrder + 1
-                        end
+                        if visible then rd.Frame.LayoutOrder = visOrder; visOrder = visOrder + 1 end
                     end
                 end
             end))
 
-            return {
-                Get = function() return selected end,
-                Set = function(_, newSelected) selected = newSelected; ConfigManager:Set(configKey, selected) end,
-            }
+            return { Get = function() return selected end, Set = function(_, newSelected) selected = newSelected; ConfigManager:Set(configKey, selected) end }
         end
 
         -- ── SEARCH BAR ───────────────────────────────────────
         function Tab:AddSearch(placeholder, callback)
             local order = NextOrder()
-
             local searchFrame = Instance.new("Frame")
             searchFrame.Size = UDim2.new(1, 0, 0, 40)
             searchFrame.BackgroundColor3 = Theme.InputBg
@@ -2685,28 +2818,19 @@ function GluttonyUI:CreateWindow(options)
             searchInput.ZIndex = 7
             searchInput.Parent = searchFrame
 
-            AddConnection(searchInput.Focused:Connect(function()
-                Tween(glowStroke, {Transparency = 0.4}, 0.2)
-            end))
-            AddConnection(searchInput.FocusLost:Connect(function()
-                Tween(glowStroke, {Transparency = 1}, 0.2)
-            end))
+            AddConnection(searchInput.Focused:Connect(function() Tween(glowStroke, {Transparency = 0.4}, 0.2) end))
+            AddConnection(searchInput.FocusLost:Connect(function() Tween(glowStroke, {Transparency = 1}, 0.2) end))
             AddConnection(searchInput:GetPropertyChangedSignal("Text"):Connect(function()
                 if callback then task.spawn(callback, searchInput.Text) end
             end))
 
-            return {
-                Get   = function() return searchInput.Text end,
-                Set   = function(_, val) searchInput.Text = val end,
-                Clear = function() searchInput.Text = "" end,
-            }
+            return { Get = function() return searchInput.Text end, Set = function(_, val) searchInput.Text = val end, Clear = function() searchInput.Text = "" end }
         end
 
         return Tab
     end
 
     -- ── WINDOW METHODS ───────────────────────────────────────
-
     function Window:Destroy()
         ConfigManager:Flush()
         ThreadManager:StopAll()
@@ -2719,35 +2843,19 @@ function GluttonyUI:CreateWindow(options)
         GluttonyUI:Notify(ntitle, message, notifType, duration)
     end
 
-    function Window:GetValue(vname)
-        return StateStore[vname]
-    end
+    function Window:GetValue(vname) return StateStore[vname] end
+    function Window:SetValue(vname, vvalue) ConfigManager:Set(vname, vvalue) end
+    function Window:SaveConfig() ConfigManager:Save() end
+    function Window:ClearConfig() StateStore = {}; ConfigManager:Save() end
 
-    function Window:SetValue(vname, vvalue)
-        ConfigManager:Set(vname, vvalue)
-    end
-
-    function Window:SaveConfig()
-        ConfigManager:Save()
-    end
-
-    function Window:ClearConfig()
-        StateStore = {}
-        ConfigManager:Save()
-    end
-
-    -- Apply saved config to UI visuals after everything is built
-    task.defer(function()
-        ConfigManager:ApplyToUI()
-    end)
+    task.defer(function() ConfigManager:ApplyToUI() end)
 
     -- ════════════════════════════════════════════════════════
-    -- AUTO SETTINGS TAB (always last)
+    -- AUTO SETTINGS TAB
     -- ════════════════════════════════════════════════════════
 
     local function BuildSettingsTab()
         local settingsOrder = 999
-
         local settingsBtn = Instance.new("TextButton")
         settingsBtn.Name = "Tab_Settings"
         settingsBtn.Size = UDim2.new(1, -14, 0, 42)
@@ -2771,22 +2879,7 @@ function GluttonyUI:CreateWindow(options)
         settingsIndicator.Parent = settingsBtn
         Corner(settingsIndicator, UDim.new(1, 0))
 
-        local settingsIconContainer = Instance.new("Frame")
-        settingsIconContainer.Size = UDim2.new(0, 20, 0, 20)
-        settingsIconContainer.Position = UDim2.new(0, 18, 0.5, -10)
-        settingsIconContainer.BackgroundTransparency = 1
-        settingsIconContainer.ZIndex = 9
-        settingsIconContainer.Parent = settingsBtn
-
-        local settingsIcon = Instance.new("TextLabel")
-        settingsIcon.Size = UDim2.new(1, 0, 1, 0)
-        settingsIcon.BackgroundTransparency = 1
-        settingsIcon.Text = "⚙"
-        settingsIcon.TextColor3 = Theme.Accent
-        settingsIcon.TextSize = 16
-        settingsIcon.Font = Enum.Font.GothamBold
-        settingsIcon.ZIndex = 10
-        settingsIcon.Parent = settingsIconContainer
+        CreateTabIcon(settingsBtn, "settings")
 
         local settingsLabel = Instance.new("TextLabel")
         settingsLabel.Name = "Label"
@@ -2802,20 +2895,12 @@ function GluttonyUI:CreateWindow(options)
         settingsLabel.Parent = settingsBtn
 
         AddConnection(settingsBtn.MouseEnter:Connect(function()
-            if Window._currentTab ~= "Settings" then
-                Tween(settingsBtn, {BackgroundColor3 = Theme.Hover}, 0.15)
-                Tween(settingsLabel, {TextColor3 = Theme.Text}, 0.15)
-            end
+            if Window._currentTab ~= "Settings" then Tween(settingsBtn, {BackgroundColor3 = Theme.Hover}, 0.15); Tween(settingsLabel, {TextColor3 = Theme.Text}, 0.15) end
         end))
         AddConnection(settingsBtn.MouseLeave:Connect(function()
-            if Window._currentTab ~= "Settings" then
-                Tween(settingsBtn, {BackgroundColor3 = Theme.Sidebar}, 0.15)
-                Tween(settingsLabel, {TextColor3 = Theme.TextDim}, 0.15)
-            end
+            if Window._currentTab ~= "Settings" then Tween(settingsBtn, {BackgroundColor3 = Theme.Sidebar}, 0.15); Tween(settingsLabel, {TextColor3 = Theme.TextDim}, 0.15) end
         end))
-        AddConnection(settingsBtn.MouseButton1Click:Connect(function()
-            SwitchTab("Settings")
-        end))
+        AddConnection(settingsBtn.MouseButton1Click:Connect(function() SwitchTab("Settings") end))
 
         Window._tabButtons["Settings"] = settingsBtn
 
@@ -2834,7 +2919,6 @@ function GluttonyUI:CreateWindow(options)
         Padding(settingsPage, 18, 18, 22, 22)
 
         local settingsLayout = ListLayout(settingsPage, 8)
-
         AddConnection(settingsLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
             settingsPage.CanvasSize = UDim2.new(0, 0, 0, settingsLayout.AbsoluteContentSize.Y + 40)
         end))
@@ -2849,338 +2933,303 @@ function GluttonyUI:CreateWindow(options)
         titleFrame.ZIndex = 7
         titleFrame.Parent = settingsPage
 
-        local pageTitleLabel = Instance.new("TextLabel")
-        pageTitleLabel.Size = UDim2.new(1, 0, 0, 34)
-        pageTitleLabel.BackgroundTransparency = 1
-        pageTitleLabel.Text = "Settings"
-        pageTitleLabel.TextColor3 = Theme.Text
-        pageTitleLabel.TextSize = 24
-        pageTitleLabel.Font = Theme.Font
-        pageTitleLabel.TextXAlignment = Enum.TextXAlignment.Left
-        pageTitleLabel.ZIndex = 7
-        pageTitleLabel.Parent = titleFrame
+        local ptl = Instance.new("TextLabel")
+        ptl.Size = UDim2.new(1, 0, 0, 34)
+        ptl.BackgroundTransparency = 1
+        ptl.Text = "Settings"
+        ptl.TextColor3 = Theme.Text
+        ptl.TextSize = 24
+        ptl.Font = Theme.Font
+        ptl.TextXAlignment = Enum.TextXAlignment.Left
+        ptl.ZIndex = 7
+        ptl.Parent = titleFrame
 
-        local underline = Instance.new("Frame")
-        underline.Size = UDim2.new(0.25, 0, 0, 2)
-        underline.Position = UDim2.new(0, 0, 1, -2)
-        underline.BackgroundColor3 = Theme.Accent
-        underline.BackgroundTransparency = 0.3
-        underline.BorderSizePixel = 0
-        underline.ZIndex = 8
-        underline.Parent = titleFrame
-        Corner(underline, UDim.new(1, 0))
-        local ulGrad = Instance.new("UIGradient")
-        ulGrad.Transparency = NumberSequence.new({NumberSequenceKeypoint.new(0,0),NumberSequenceKeypoint.new(0.7,0),NumberSequenceKeypoint.new(1,1)})
-        ulGrad.Parent = underline
+        local ul = Instance.new("Frame")
+        ul.Size = UDim2.new(0.25, 0, 0, 2)
+        ul.Position = UDim2.new(0, 0, 1, -2)
+        ul.BackgroundColor3 = Theme.Accent
+        ul.BackgroundTransparency = 0.3
+        ul.BorderSizePixel = 0
+        ul.ZIndex = 8
+        ul.Parent = titleFrame
+        Corner(ul, UDim.new(1, 0))
+        local ulg = Instance.new("UIGradient")
+        ulg.Transparency = NumberSequence.new({NumberSequenceKeypoint.new(0,0),NumberSequenceKeypoint.new(0.7,0),NumberSequenceKeypoint.new(1,1)})
+        ulg.Parent = ul
 
-        local layoutOrder = 0
-        local function NextSettingsOrder() layoutOrder = layoutOrder + 1; return layoutOrder end
+        local lo = 0
+        local function NSO() lo = lo + 1; return lo end
 
-        -- Interface section
-        local ifaceLabel = Instance.new("TextLabel")
-        ifaceLabel.Size = UDim2.new(1, 0, 0, 30)
-        ifaceLabel.BackgroundTransparency = 1
-        ifaceLabel.Text = "Interface"
-        ifaceLabel.TextColor3 = Theme.Accent
-        ifaceLabel.TextSize = 15
-        ifaceLabel.Font = Theme.Font
-        ifaceLabel.TextXAlignment = Enum.TextXAlignment.Left
-        ifaceLabel.LayoutOrder = NextSettingsOrder()
-        ifaceLabel.ZIndex = 7
-        ifaceLabel.Parent = settingsPage
+        -- Interface section label
+        local il = Instance.new("TextLabel")
+        il.Size = UDim2.new(1, 0, 0, 30)
+        il.BackgroundTransparency = 1
+        il.Text = "Interface"
+        il.TextColor3 = Theme.Accent
+        il.TextSize = 15
+        il.Font = Theme.Font
+        il.TextXAlignment = Enum.TextXAlignment.Left
+        il.LayoutOrder = NSO()
+        il.ZIndex = 7
+        il.Parent = settingsPage
 
-        -- Opacity slider
-        local opacityOrder = NextSettingsOrder()
-        local opacityValue = StateStore["GUI Opacity"] or 100
+        -- Opacity Slider (manual build since we're in settings tab)
+        local opOrder = NSO()
+        local opVal = StateStore["GUI Opacity"] or 100
+        local opRow = Instance.new("Frame")
+        opRow.Size = UDim2.new(1, 0, 0, Theme.RowHeight + 4)
+        opRow.BackgroundColor3 = RowColor(opOrder)
+        opRow.BorderSizePixel = 0
+        opRow.LayoutOrder = opOrder
+        opRow.ZIndex = 6
+        opRow.ClipsDescendants = true
+        opRow.Parent = settingsPage
+        Corner(opRow, Theme.CornerRadius)
 
-        local opacityRow = Instance.new("Frame")
-        opacityRow.Size = UDim2.new(1, 0, 0, Theme.RowHeight + 4)
-        opacityRow.BackgroundColor3 = RowColor(opacityOrder)
-        opacityRow.BorderSizePixel = 0
-        opacityRow.LayoutOrder = opacityOrder
-        opacityRow.ZIndex = 6
-        opacityRow.ClipsDescendants = true
-        opacityRow.Parent = settingsPage
-        Corner(opacityRow, Theme.CornerRadius)
+        local opAcc = HoverAccent(opRow)
 
-        local opacityAccent = HoverAccent(opacityRow)
+        local opLbl = Instance.new("TextLabel")
+        opLbl.Size = UDim2.new(0, 170, 1, 0)
+        opLbl.Position = UDim2.new(0, 18, 0, 0)
+        opLbl.BackgroundTransparency = 1
+        opLbl.Text = "GUI Opacity"
+        opLbl.TextColor3 = Theme.Text
+        opLbl.TextSize = 14
+        opLbl.Font = Theme.FontLight
+        opLbl.TextXAlignment = Enum.TextXAlignment.Left
+        opLbl.ZIndex = 7
+        opLbl.Parent = opRow
 
-        local opacityLabel = Instance.new("TextLabel")
-        opacityLabel.Size = UDim2.new(0, 170, 1, 0)
-        opacityLabel.Position = UDim2.new(0, 18, 0, 0)
-        opacityLabel.BackgroundTransparency = 1
-        opacityLabel.Text = "GUI Opacity"
-        opacityLabel.TextColor3 = Theme.Text
-        opacityLabel.TextSize = 14
-        opacityLabel.Font = Theme.FontLight
-        opacityLabel.TextXAlignment = Enum.TextXAlignment.Left
-        opacityLabel.ZIndex = 7
-        opacityLabel.Parent = opacityRow
+        local opBadge = Instance.new("Frame")
+        opBadge.Size = UDim2.new(0, 42, 0, 22)
+        opBadge.Position = UDim2.new(1, -158, 0.5, -11)
+        opBadge.BackgroundColor3 = Theme.Accent
+        opBadge.BackgroundTransparency = 0.85
+        opBadge.BorderSizePixel = 0
+        opBadge.ZIndex = 7
+        opBadge.Parent = opRow
+        Corner(opBadge, UDim.new(0, 5))
 
-        local opacityBadge = Instance.new("Frame")
-        opacityBadge.Size = UDim2.new(0, 42, 0, 22)
-        opacityBadge.Position = UDim2.new(1, -158, 0.5, -11)
-        opacityBadge.BackgroundColor3 = Theme.Accent
-        opacityBadge.BackgroundTransparency = 0.85
-        opacityBadge.BorderSizePixel = 0
-        opacityBadge.ZIndex = 7
-        opacityBadge.Parent = opacityRow
-        Corner(opacityBadge, UDim.new(0, 5))
+        local opVL = Instance.new("TextLabel")
+        opVL.Size = UDim2.new(1, 0, 1, 0)
+        opVL.BackgroundTransparency = 1
+        opVL.Text = tostring(math.floor(opVal))
+        opVL.TextColor3 = Theme.Accent
+        opVL.TextSize = 13
+        opVL.Font = Theme.Font
+        opVL.ZIndex = 8
+        opVL.Parent = opBadge
 
-        local opacityValueLabel = Instance.new("TextLabel")
-        opacityValueLabel.Size = UDim2.new(1, 0, 1, 0)
-        opacityValueLabel.BackgroundTransparency = 1
-        opacityValueLabel.Text = tostring(math.floor(opacityValue))
-        opacityValueLabel.TextColor3 = Theme.Accent
-        opacityValueLabel.TextSize = 13
-        opacityValueLabel.Font = Theme.Font
-        opacityValueLabel.ZIndex = 8
-        opacityValueLabel.Parent = opacityBadge
+        local opTrack = Instance.new("Frame")
+        opTrack.Size = UDim2.new(0, 100, 0, 6)
+        opTrack.Position = UDim2.new(1, -112, 0.5, -3)
+        opTrack.BackgroundColor3 = Theme.SliderBg
+        opTrack.BorderSizePixel = 0
+        opTrack.ZIndex = 8
+        opTrack.Parent = opRow
+        Corner(opTrack, UDim.new(1, 0))
 
-        local opacityTrack = Instance.new("Frame")
-        opacityTrack.Size = UDim2.new(0, 100, 0, 6)
-        opacityTrack.Position = UDim2.new(1, -112, 0.5, -3)
-        opacityTrack.BackgroundColor3 = Theme.SliderBg
-        opacityTrack.BorderSizePixel = 0
-        opacityTrack.ZIndex = 8
-        opacityTrack.Parent = opacityRow
-        Corner(opacityTrack, UDim.new(1, 0))
+        local opP = (opVal - 10) / 90
+        local opFill = Instance.new("Frame")
+        opFill.Size = UDim2.new(opP, 0, 1, 0)
+        opFill.BackgroundColor3 = Theme.SliderFill
+        opFill.BorderSizePixel = 0
+        opFill.ZIndex = 9
+        opFill.Parent = opTrack
+        Corner(opFill, UDim.new(1, 0))
 
-        local opPct = (opacityValue - 10) / 90
-
-        local opacityFill = Instance.new("Frame")
-        opacityFill.Size = UDim2.new(opPct, 0, 1, 0)
-        opacityFill.BackgroundColor3 = Theme.SliderFill
-        opacityFill.BorderSizePixel = 0
-        opacityFill.ZIndex = 9
-        opacityFill.Parent = opacityTrack
-        Corner(opacityFill, UDim.new(1, 0))
-
-        local opacityKnob = Instance.new("Frame")
-        opacityKnob.Size = UDim2.new(0, 16, 0, 16)
-        opacityKnob.Position = UDim2.new(opPct, -8, 0.5, -8)
-        opacityKnob.BackgroundColor3 = Theme.Text
-        opacityKnob.BorderSizePixel = 0
-        opacityKnob.ZIndex = 10
-        opacityKnob.Parent = opacityTrack
-        Corner(opacityKnob, UDim.new(1, 0))
-        Stroke(opacityKnob, Theme.Shadow, 1, 0.75)
+        local opKnob = Instance.new("Frame")
+        opKnob.Size = UDim2.new(0, 16, 0, 16)
+        opKnob.Position = UDim2.new(opP, -8, 0.5, -8)
+        opKnob.BackgroundColor3 = Theme.Text
+        opKnob.BorderSizePixel = 0
+        opKnob.ZIndex = 10
+        opKnob.Parent = opTrack
+        Corner(opKnob, UDim.new(1, 0))
+        Stroke(opKnob, Theme.Shadow, 1, 0.75)
 
         local opSliding = false
-        local opHitArea = Instance.new("TextButton")
-        opHitArea.Size = UDim2.new(1, 14, 1, 18)
-        opHitArea.Position = UDim2.new(0, -7, 0, -9)
-        opHitArea.BackgroundTransparency = 1
-        opHitArea.Text = ""
-        opHitArea.ZIndex = 11
-        opHitArea.Parent = opacityTrack
+        local opHit = Instance.new("TextButton")
+        opHit.Size = UDim2.new(1, 14, 1, 18)
+        opHit.Position = UDim2.new(0, -7, 0, -9)
+        opHit.BackgroundTransparency = 1
+        opHit.Text = ""
+        opHit.ZIndex = 11
+        opHit.Parent = opTrack
 
-        local function ApplyOpacity(val)
-            local t = 1 - (val / 100)
+        local function ApplyOpacity(v)
+            local t = 1 - (v / 100)
             main.BackgroundTransparency = t
             if titleBar then titleBar.BackgroundTransparency = t end
             if sidebar then sidebar.BackgroundTransparency = t end
             if content then content.BackgroundTransparency = t end
         end
 
-        local function UpdateOpacity(input)
-            local x = math.clamp((input.Position.X - opacityTrack.AbsolutePosition.X) / opacityTrack.AbsoluteSize.X, 0, 1)
+        local function UpdateOp(input)
+            local x = math.clamp((input.Position.X - opTrack.AbsolutePosition.X) / opTrack.AbsoluteSize.X, 0, 1)
             local v = math.floor(10 + 90 * x)
-            opacityValue = v
-            ConfigManager:Set("GUI Opacity", v)
-            opacityValueLabel.Text = tostring(v)
-            opacityFill.Size = UDim2.new(x, 0, 1, 0)
-            opacityKnob.Position = UDim2.new(x, -8, 0.5, -8)
+            opVal = v; ConfigManager:Set("GUI Opacity", v)
+            opVL.Text = tostring(v)
+            opFill.Size = UDim2.new(x, 0, 1, 0)
+            opKnob.Position = UDim2.new(x, -8, 0.5, -8)
             ApplyOpacity(v)
         end
 
-        AddConnection(opHitArea.InputBegan:Connect(function(input)
-            if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-                opSliding = true; UpdateOpacity(input)
-            end
-        end))
-        AddConnection(opHitArea.InputEnded:Connect(function(input)
-            if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-                opSliding = false
-            end
-        end))
-        AddConnection(UserInputService.InputChanged:Connect(function(input)
-            if opSliding and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
-                UpdateOpacity(input)
-            end
-        end))
+        AddConnection(opHit.InputBegan:Connect(function(i) if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then opSliding = true; UpdateOp(i) end end))
+        AddConnection(opHit.InputEnded:Connect(function(i) if i.UserInputType == Enum.UserInputType.MouseButton1 or i.UserInputType == Enum.UserInputType.Touch then opSliding = false end end))
+        AddConnection(UserInputService.InputChanged:Connect(function(i) if opSliding and (i.UserInputType == Enum.UserInputType.MouseMovement or i.UserInputType == Enum.UserInputType.Touch) then UpdateOp(i) end end))
 
-        SetupHover(opacityRow, RowColor(opacityOrder), opacityAccent)
-        ApplyOpacity(opacityValue)
+        SetupHover(opRow, RowColor(opOrder), opAcc)
+        ApplyOpacity(opVal)
 
         -- Spacer
-        local spacer = Instance.new("Frame")
-        spacer.Size = UDim2.new(1, 0, 0, 20)
-        spacer.BackgroundTransparency = 1
-        spacer.LayoutOrder = NextSettingsOrder()
-        spacer.Parent = settingsPage
+        local sp = Instance.new("Frame")
+        sp.Size = UDim2.new(1, 0, 0, 20)
+        sp.BackgroundTransparency = 1
+        sp.LayoutOrder = NSO()
+        sp.Parent = settingsPage
 
-        -- Community section
-        local commLabel = Instance.new("TextLabel")
-        commLabel.Size = UDim2.new(1, 0, 0, 30)
-        commLabel.BackgroundTransparency = 1
-        commLabel.Text = "Community"
-        commLabel.TextColor3 = Theme.Accent
-        commLabel.TextSize = 15
-        commLabel.Font = Theme.Font
-        commLabel.TextXAlignment = Enum.TextXAlignment.Left
-        commLabel.LayoutOrder = NextSettingsOrder()
-        commLabel.ZIndex = 7
-        commLabel.Parent = settingsPage
+        -- Community
+        local cl = Instance.new("TextLabel")
+        cl.Size = UDim2.new(1, 0, 0, 30)
+        cl.BackgroundTransparency = 1
+        cl.Text = "Community"
+        cl.TextColor3 = Theme.Accent
+        cl.TextSize = 15
+        cl.Font = Theme.Font
+        cl.TextXAlignment = Enum.TextXAlignment.Left
+        cl.LayoutOrder = NSO()
+        cl.ZIndex = 7
+        cl.Parent = settingsPage
 
         -- Info card
-        local infoCard = Instance.new("Frame")
-        infoCard.Size = UDim2.new(1, 0, 0, 80)
-        infoCard.BackgroundColor3 = Color3.fromRGB(28, 30, 38)
-        infoCard.BorderSizePixel = 0
-        infoCard.LayoutOrder = NextSettingsOrder()
-        infoCard.ZIndex = 6
-        infoCard.Parent = settingsPage
-        Corner(infoCard, Theme.CornerRadius)
-        Stroke(infoCard, Theme.Border, 1, 0.4)
+        local ic = Instance.new("Frame")
+        ic.Size = UDim2.new(1, 0, 0, 80)
+        ic.BackgroundColor3 = Color3.fromRGB(28, 30, 38)
+        ic.BorderSizePixel = 0
+        ic.LayoutOrder = NSO()
+        ic.ZIndex = 6
+        ic.Parent = settingsPage
+        Corner(ic, Theme.CornerRadius)
+        Stroke(ic, Theme.Border, 1, 0.4)
 
-        local infoAccentBar = Instance.new("Frame")
-        infoAccentBar.Size = UDim2.new(0, 4, 1, -16)
-        infoAccentBar.Position = UDim2.new(0, 10, 0, 8)
-        infoAccentBar.BackgroundColor3 = Theme.Accent
-        infoAccentBar.BackgroundTransparency = 0.3
-        infoAccentBar.BorderSizePixel = 0
-        infoAccentBar.ZIndex = 7
-        infoAccentBar.Parent = infoCard
-        Corner(infoAccentBar, UDim.new(1, 0))
+        local iab = Instance.new("Frame")
+        iab.Size = UDim2.new(0, 4, 1, -16)
+        iab.Position = UDim2.new(0, 10, 0, 8)
+        iab.BackgroundColor3 = Theme.Accent
+        iab.BackgroundTransparency = 0.3
+        iab.BorderSizePixel = 0
+        iab.ZIndex = 7
+        iab.Parent = ic
+        Corner(iab, UDim.new(1, 0))
 
-        local infoText = Instance.new("TextLabel")
-        infoText.Size = UDim2.new(1, -40, 1, -20)
-        infoText.Position = UDim2.new(0, 28, 0, 10)
-        infoText.BackgroundTransparency = 1
-        infoText.Text = "Join our Discord community for updates, feature requests, bug reports, and direct support from the team."
-        infoText.TextColor3 = Theme.TextDim
-        infoText.TextSize = 13
-        infoText.Font = Theme.FontLight
-        infoText.TextXAlignment = Enum.TextXAlignment.Left
-        infoText.TextYAlignment = Enum.TextYAlignment.Center
-        infoText.TextWrapped = true
-        infoText.ZIndex = 7
-        infoText.Parent = infoCard
+        local it = Instance.new("TextLabel")
+        it.Size = UDim2.new(1, -40, 1, -20)
+        it.Position = UDim2.new(0, 28, 0, 10)
+        it.BackgroundTransparency = 1
+        it.Text = "Join our Discord community for updates, feature requests, bug reports, and direct support."
+        it.TextColor3 = Theme.TextDim
+        it.TextSize = 13
+        it.Font = Theme.FontLight
+        it.TextXAlignment = Enum.TextXAlignment.Left
+        it.TextYAlignment = Enum.TextYAlignment.Center
+        it.TextWrapped = true
+        it.ZIndex = 7
+        it.Parent = ic
 
-        -- Discord button row
-        local discordRow = Instance.new("Frame")
-        discordRow.Size = UDim2.new(1, 0, 0, Theme.RowHeight)
-        discordRow.BackgroundColor3 = RowColor(NextSettingsOrder())
-        discordRow.BorderSizePixel = 0
-        discordRow.LayoutOrder = layoutOrder
-        discordRow.ZIndex = 6
-        discordRow.ClipsDescendants = true
-        discordRow.Parent = settingsPage
-        Corner(discordRow, Theme.CornerRadius)
+        -- Discord row
+        local dOrder = NSO()
+        local dRow = Instance.new("Frame")
+        dRow.Size = UDim2.new(1, 0, 0, Theme.RowHeight)
+        dRow.BackgroundColor3 = RowColor(dOrder)
+        dRow.BorderSizePixel = 0
+        dRow.LayoutOrder = dOrder
+        dRow.ZIndex = 6
+        dRow.ClipsDescendants = true
+        dRow.Parent = settingsPage
+        Corner(dRow, Theme.CornerRadius)
 
-        local discordAccent = HoverAccent(discordRow)
+        local dAcc = HoverAccent(dRow)
 
-        local discordLabel = Instance.new("TextLabel")
-        discordLabel.Size = UDim2.new(1, -130, 1, 0)
-        discordLabel.Position = UDim2.new(0, 18, 0, 0)
-        discordLabel.BackgroundTransparency = 1
-        discordLabel.Text = "Discord Server"
-        discordLabel.TextColor3 = Theme.Text
-        discordLabel.TextSize = 14
-        discordLabel.Font = Theme.FontLight
-        discordLabel.TextXAlignment = Enum.TextXAlignment.Left
-        discordLabel.ZIndex = 7
-        discordLabel.Parent = discordRow
+        local dLbl = Instance.new("TextLabel")
+        dLbl.Size = UDim2.new(1, -130, 1, 0)
+        dLbl.Position = UDim2.new(0, 18, 0, 0)
+        dLbl.BackgroundTransparency = 1
+        dLbl.Text = "Discord Server"
+        dLbl.TextColor3 = Theme.Text
+        dLbl.TextSize = 14
+        dLbl.Font = Theme.FontLight
+        dLbl.TextXAlignment = Enum.TextXAlignment.Left
+        dLbl.ZIndex = 7
+        dLbl.Parent = dRow
 
-        local discordBtnFrame = Instance.new("Frame")
-        discordBtnFrame.Size = UDim2.new(0, 100, 0, 32)
-        discordBtnFrame.Position = UDim2.new(1, -114, 0.5, -16)
-        discordBtnFrame.BackgroundTransparency = 1
-        discordBtnFrame.ZIndex = 7
-        discordBtnFrame.Parent = discordRow
+        local dBF = Instance.new("Frame")
+        dBF.Size = UDim2.new(0, 100, 0, 32)
+        dBF.Position = UDim2.new(1, -114, 0.5, -16)
+        dBF.BackgroundTransparency = 1
+        dBF.ZIndex = 7
+        dBF.Parent = dRow
 
-        local discordShadow = Instance.new("Frame")
-        discordShadow.Size = UDim2.new(1, 2, 1, 2)
-        discordShadow.Position = UDim2.new(0, -1, 0, 2)
-        discordShadow.BackgroundColor3 = Theme.Shadow
-        discordShadow.BackgroundTransparency = 0.82
-        discordShadow.BorderSizePixel = 0
-        discordShadow.ZIndex = 7
-        discordShadow.Parent = discordBtnFrame
-        Corner(discordShadow, Theme.CornerRadius)
+        local dSh = Instance.new("Frame")
+        dSh.Size = UDim2.new(1, 2, 1, 2)
+        dSh.Position = UDim2.new(0, -1, 0, 2)
+        dSh.BackgroundColor3 = Theme.Shadow
+        dSh.BackgroundTransparency = 0.82
+        dSh.BorderSizePixel = 0
+        dSh.ZIndex = 7
+        dSh.Parent = dBF
+        Corner(dSh, Theme.CornerRadius)
 
-        local discordColor = Color3.fromRGB(88, 101, 242)
-        local discordHoverColor = Color3.fromRGB(108, 121, 255)
-        local successColor = Color3.fromRGB(50, 180, 80)
+        local dCol = Color3.fromRGB(88, 101, 242)
+        local dHov = Color3.fromRGB(108, 121, 255)
+        local sCol = Color3.fromRGB(50, 180, 80)
 
-        local discordButton = Instance.new("TextButton")
-        discordButton.Size = UDim2.new(1, -2, 1, -2)
-        discordButton.Position = UDim2.new(0, 1, 0, 0)
-        discordButton.BackgroundColor3 = discordColor
-        discordButton.Text = "Copy Link"
-        discordButton.TextColor3 = Theme.Text
-        discordButton.TextSize = 13
-        discordButton.Font = Theme.Font
-        discordButton.BorderSizePixel = 0
-        discordButton.AutoButtonColor = false
-        discordButton.ZIndex = 8
-        discordButton.Parent = discordBtnFrame
-        Corner(discordButton, Theme.CornerRadius)
+        local dBtn = Instance.new("TextButton")
+        dBtn.Size = UDim2.new(1, -2, 1, -2)
+        dBtn.Position = UDim2.new(0, 1, 0, 0)
+        dBtn.BackgroundColor3 = dCol
+        dBtn.Text = "Copy Link"
+        dBtn.TextColor3 = Theme.Text
+        dBtn.TextSize = 13
+        dBtn.Font = Theme.Font
+        dBtn.BorderSizePixel = 0
+        dBtn.AutoButtonColor = false
+        dBtn.ZIndex = 8
+        dBtn.Parent = dBF
+        Corner(dBtn, Theme.CornerRadius)
 
-        local discordGlow = Stroke(discordButton, discordColor, 1.5, 0.6)
+        local dGlow = Stroke(dBtn, dCol, 1.5, 0.6)
 
-        AddConnection(discordButton.MouseEnter:Connect(function()
-            Tween(discordButton, {BackgroundColor3 = discordHoverColor}, 0.15)
-            Tween(discordGlow, {Transparency = 0.3}, 0.2)
-        end))
-        AddConnection(discordButton.MouseLeave:Connect(function()
-            Tween(discordButton, {BackgroundColor3 = discordColor}, 0.15)
-            Tween(discordGlow, {Transparency = 0.6}, 0.2)
-        end))
-        AddConnection(discordButton.MouseButton1Click:Connect(function()
-            Tween(discordButton, {Size = UDim2.new(1, -6, 1, -4)}, 0.06)
-            task.delay(0.06, function()
-                Tween(discordButton, {Size = UDim2.new(1, -2, 1, -2)}, 0.1, Enum.EasingStyle.Back)
-            end)
-
-            local discordURL = "https://discord.gg/6KmxCWU6Dc"
-            local copied = pcall(function()
-                if setclipboard then setclipboard(discordURL)
-                elseif toclipboard then toclipboard(discordURL)
-                else error("No clipboard") end
-            end)
-
-            if copied then
-                local origText = discordButton.Text
-                discordButton.Text = "Copied!"
-                Tween(discordButton, {BackgroundColor3 = successColor}, 0.2)
-                Tween(discordGlow, {Color = successColor, Transparency = 0.3}, 0.2)
+        AddConnection(dBtn.MouseEnter:Connect(function() Tween(dBtn, {BackgroundColor3 = dHov}, 0.15); Tween(dGlow, {Transparency = 0.3}, 0.2) end))
+        AddConnection(dBtn.MouseLeave:Connect(function() Tween(dBtn, {BackgroundColor3 = dCol}, 0.15); Tween(dGlow, {Transparency = 0.6}, 0.2) end))
+        AddConnection(dBtn.MouseButton1Click:Connect(function()
+            Tween(dBtn, {Size = UDim2.new(1, -6, 1, -4)}, 0.06)
+            task.delay(0.06, function() Tween(dBtn, {Size = UDim2.new(1, -2, 1, -2)}, 0.1, Enum.EasingStyle.Back) end)
+            local url = "https://discord.gg/6KmxCWU6Dc"
+            local ok = pcall(function() if setclipboard then setclipboard(url) elseif toclipboard then toclipboard(url) else error() end end)
+            if ok then
+                local ot = dBtn.Text; dBtn.Text = "Copied!"
+                Tween(dBtn, {BackgroundColor3 = sCol}, 0.2); Tween(dGlow, {Color = sCol, Transparency = 0.3}, 0.2)
                 task.delay(1.5, function()
-                    if discordButton and discordButton.Parent then
-                        discordButton.Text = origText
-                        Tween(discordButton, {BackgroundColor3 = discordColor}, 0.2)
-                        Tween(discordGlow, {Color = discordColor, Transparency = 0.6}, 0.2)
-                    end
+                    if dBtn and dBtn.Parent then dBtn.Text = ot; Tween(dBtn, {BackgroundColor3 = dCol}, 0.2); Tween(dGlow, {Color = dCol, Transparency = 0.6}, 0.2) end
                 end)
             end
         end))
 
-        SetupHover(discordRow, RowColor(layoutOrder), discordAccent)
+        SetupHover(dRow, RowColor(dOrder), dAcc)
 
-        -- Version label
-        local versionLabel = Instance.new("TextLabel")
-        versionLabel.Size = UDim2.new(0, 40, 0, 16)
-        versionLabel.Position = UDim2.new(1, -50, 1, -22)
-        versionLabel.BackgroundTransparency = 1
-        versionLabel.Text = "v2.0"
-        versionLabel.TextColor3 = Theme.TextDim
-        versionLabel.TextTransparency = 0.5
-        versionLabel.TextSize = 11
-        versionLabel.Font = Theme.FontLight
-        versionLabel.TextXAlignment = Enum.TextXAlignment.Right
-        versionLabel.ZIndex = 15
-        versionLabel.Parent = inner
+        local vl = Instance.new("TextLabel")
+        vl.Size = UDim2.new(0, 40, 0, 16)
+        vl.Position = UDim2.new(1, -50, 1, -22)
+        vl.BackgroundTransparency = 1
+        vl.Text = "v2.1"
+        vl.TextColor3 = Theme.TextDim
+        vl.TextTransparency = 0.5
+        vl.TextSize = 11
+        vl.Font = Theme.FontLight
+        vl.TextXAlignment = Enum.TextXAlignment.Right
+        vl.ZIndex = 15
+        vl.Parent = inner
     end
 
     BuildSettingsTab()
@@ -3250,41 +3299,27 @@ function GluttonyUI:CreateWindow(options)
     task.spawn(function()
         while pulseRunning do
             if not ToggleButton or not ToggleButton.Parent then break end
-            Tween(tbAccentBar, {BackgroundTransparency = 0.3}, 1.2, Enum.EasingStyle.Sine)
-            task.wait(1.2)
+            Tween(tbAccentBar, {BackgroundTransparency = 0.3}, 1.2, Enum.EasingStyle.Sine); task.wait(1.2)
             if not ToggleButton or not ToggleButton.Parent then break end
-            Tween(tbAccentBar, {BackgroundTransparency = 0}, 1.2, Enum.EasingStyle.Sine)
-            task.wait(1.2)
+            Tween(tbAccentBar, {BackgroundTransparency = 0}, 1.2, Enum.EasingStyle.Sine); task.wait(1.2)
         end
     end)
 
-    local tbDragging = false
-    local tbDragStartY = 0
-    local tbButtonStartY = 0
-    local tbHasMoved = false
-    local tbClickDebounce = false
+    local tbDragging, tbDragStartY, tbButtonStartY, tbHasMoved, tbClickDebounce = false, 0, 0, false, false
     local guiOpen = true
 
-    local function getTbYOffset()
-        return ToggleButton.Position.Y.Offset
-    end
-
+    local function getTbYOffset() return ToggleButton.Position.Y.Offset end
     local function setTbY(yOffset)
-        local screenH = screenGui.AbsoluteSize.Y
-        local btnH = ToggleButton.AbsoluteSize.Y
-        local minY = -screenH / 2 + btnH / 2 + 20
-        local maxY = screenH / 2 - btnH / 2 - 20
-        yOffset = math.clamp(yOffset, minY, maxY)
-        local xPos = guiOpen and 0 or -4
-        ToggleButton.Position = UDim2.new(0, xPos, 0.5, yOffset)
+        local sH = screenGui.AbsoluteSize.Y
+        local bH = ToggleButton.AbsoluteSize.Y
+        yOffset = math.clamp(yOffset, -sH/2 + bH/2 + 20, sH/2 - bH/2 - 20)
+        ToggleButton.Position = UDim2.new(0, guiOpen and 0 or -4, 0.5, yOffset)
     end
 
     AddConnection(toggleClickBtn.MouseButton1Down:Connect(function()
         if tbClickDebounce then return end
-        tbDragging = true
-        tbHasMoved = false
-        tbDragStartY = UserInputService:GetMouseLocation().Y
-        tbButtonStartY = getTbYOffset()
+        tbDragging = true; tbHasMoved = false
+        tbDragStartY = UserInputService:GetMouseLocation().Y; tbButtonStartY = getTbYOffset()
     end))
 
     AddConnection(toggleClickBtn.MouseButton1Up:Connect(function()
@@ -3292,19 +3327,18 @@ function GluttonyUI:CreateWindow(options)
         tbDragging = false
         if not tbHasMoved and not tbClickDebounce then
             tbClickDebounce = true
-            local currentY = getTbYOffset()
+            local cy = getTbYOffset()
             if guiOpen then
                 guiOpen = false
                 Tween(main, {Size = UDim2.new(0, Theme.WindowWidth, 0, 0)}, 0.3)
-                Tween(ToggleButton, {Position = UDim2.new(0, -4, 0.5, currentY)}, 0.25)
+                Tween(ToggleButton, {Position = UDim2.new(0, -4, 0.5, cy)}, 0.25)
                 Tween(tbAccentBar, {Size = UDim2.new(0, 3, 0, 35)}, 0.25)
                 task.delay(0.3, function() main.Visible = false; tbClickDebounce = false end)
             else
-                guiOpen = true
-                main.Visible = true
+                guiOpen = true; main.Visible = true
                 main.Size = UDim2.new(0, Theme.WindowWidth, 0, 0)
                 Tween(main, {Size = UDim2.new(0, Theme.WindowWidth, 0, Theme.WindowHeight)}, 0.35, Enum.EasingStyle.Back)
-                Tween(ToggleButton, {Position = UDim2.new(0, 0, 0.5, currentY)}, 0.25)
+                Tween(ToggleButton, {Position = UDim2.new(0, 0, 0.5, cy)}, 0.25)
                 Tween(tbAccentBar, {Size = UDim2.new(0, 3, 0, 55)}, 0.25)
                 task.delay(0.35, function() tbClickDebounce = false end)
             end
@@ -3314,49 +3348,33 @@ function GluttonyUI:CreateWindow(options)
     AddConnection(UserInputService.InputChanged:Connect(function(input)
         if not tbDragging then return end
         if input.UserInputType ~= Enum.UserInputType.MouseMovement and input.UserInputType ~= Enum.UserInputType.Touch then return end
-        local currentMouseY = UserInputService:GetMouseLocation().Y
-        local deltaY = currentMouseY - tbDragStartY
-        if math.abs(deltaY) > 5 then tbHasMoved = true end
-        if tbHasMoved then setTbY(tbButtonStartY + deltaY) end
+        local dy = UserInputService:GetMouseLocation().Y - tbDragStartY
+        if math.abs(dy) > 5 then tbHasMoved = true end
+        if tbHasMoved then setTbY(tbButtonStartY + dy) end
     end))
 
     AddConnection(UserInputService.InputEnded:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-            tbDragging = false
-        end
+        if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then tbDragging = false end
     end))
 
     AddConnection(toggleClickBtn.MouseEnter:Connect(function()
-        Tween(ToggleButton, {BackgroundColor3 = Theme.Hover}, 0.2)
-        Tween(leftCover, {BackgroundColor3 = Theme.Hover}, 0.2)
-        local currentY = getTbYOffset()
-        Tween(ToggleButton, {Position = UDim2.new(0, 0, 0.5, currentY)}, 0.2)
+        Tween(ToggleButton, {BackgroundColor3 = Theme.Hover}, 0.2); Tween(leftCover, {BackgroundColor3 = Theme.Hover}, 0.2)
+        Tween(ToggleButton, {Position = UDim2.new(0, 0, 0.5, getTbYOffset())}, 0.2)
         for i, dot in ipairs(dots) do
-            task.delay(i * 0.04, function()
-                Tween(dot, {BackgroundColor3 = Theme.Accent, BackgroundTransparency = 0, Size = UDim2.new(0, 8, 0, 8), Position = UDim2.new(0.5, -4, 0, (i-1)*11 - 1)}, 0.15)
-            end)
+            task.delay(i * 0.04, function() Tween(dot, {BackgroundColor3 = Theme.Accent, BackgroundTransparency = 0, Size = UDim2.new(0, 8, 0, 8), Position = UDim2.new(0.5, -4, 0, (i-1)*11-1)}, 0.15) end)
         end
     end))
 
     AddConnection(toggleClickBtn.MouseLeave:Connect(function()
-        Tween(ToggleButton, {BackgroundColor3 = Theme.Background}, 0.2)
-        Tween(leftCover, {BackgroundColor3 = Theme.Background}, 0.2)
-        if not guiOpen and not tbDragging then
-            local currentY = getTbYOffset()
-            Tween(ToggleButton, {Position = UDim2.new(0, -4, 0.5, currentY)}, 0.2)
-        end
+        Tween(ToggleButton, {BackgroundColor3 = Theme.Background}, 0.2); Tween(leftCover, {BackgroundColor3 = Theme.Background}, 0.2)
+        if not guiOpen and not tbDragging then Tween(ToggleButton, {Position = UDim2.new(0, -4, 0.5, getTbYOffset())}, 0.2) end
         for i, dot in ipairs(dots) do
-            task.delay(i * 0.04, function()
-                Tween(dot, {BackgroundColor3 = Theme.TextDim, BackgroundTransparency = 0.3, Size = UDim2.new(0, 6, 0, 6), Position = UDim2.new(0.5, -3, 0, (i-1)*11)}, 0.15)
-            end)
+            task.delay(i * 0.04, function() Tween(dot, {BackgroundColor3 = Theme.TextDim, BackgroundTransparency = 0.3, Size = UDim2.new(0, 6, 0, 6), Position = UDim2.new(0.5, -3, 0, (i-1)*11)}, 0.15) end)
         end
     end))
 
     local origDestroy = Window.Destroy
-    function Window:Destroy()
-        pulseRunning = false
-        origDestroy(self)
-    end
+    function Window:Destroy() pulseRunning = false; origDestroy(self) end
 
     return Window
 end
