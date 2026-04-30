@@ -678,6 +678,409 @@ function GluttonyUI:CreateWindow(options)
             wt.ZIndex=7; wt.Parent=f; return f
         end
         
+                -- PROTECTION LIST (searchable list with toggle + mutation pills per item)
+        function Tab:AddProtectionList(labelText, items, opts)
+            --[[
+                items = array of {
+                    Name     = string,
+                    Rarity   = string (optional),
+                    CPS      = number or nil,
+                    Special  = boolean (optional),
+                    RarityColor = Color3 (optional),
+                }
+                opts = {
+                    MutationPills = { {Key="ALL", Short="All", Color=Color3}, ... },
+                    OnProtectionChanged = function(name, isProtected),
+                    OnMutationChanged   = function(name, mutationKey),
+                    GetProtected        = function(name) -> bool,
+                    SetProtected        = function(name, bool),
+                    GetMutationMode     = function(name) -> string,
+                    SetMutationMode     = function(name, string),
+                    FormatCPS           = function(number) -> string (optional),
+                }
+            ]]
+            opts = opts or {}
+            local order = NextOrder()
+
+            local getProtected   = opts.GetProtected   or function() return false end
+            local setProtected   = opts.SetProtected   or function() end
+            local getMutMode     = opts.GetMutationMode or function() return "NONE" end
+            local setMutMode     = opts.SetMutationMode or function() end
+            local formatCPS      = opts.FormatCPS       or GluttonyUI.FormatNumber
+            local pillDefs       = opts.MutationPills   or {}
+            local onProtChanged  = opts.OnProtectionChanged
+            local onMutChanged   = opts.OnMutationChanged
+
+            -- Search bar
+            local searchFrame = Instance.new("Frame")
+            searchFrame.Size = UDim2.new(1, 0, 0, 38)
+            searchFrame.BackgroundColor3 = Theme.InputBg
+            searchFrame.BorderSizePixel = 0
+            searchFrame.LayoutOrder = order
+            searchFrame.ZIndex = 7
+            searchFrame.Parent = page
+            Corner(searchFrame)
+            local searchGlow = Stroke(searchFrame, Theme.Accent, 1.5, 1)
+
+            local searchIcon = Instance.new("TextLabel")
+            searchIcon.Size = UDim2.new(0, 30, 1, 0)
+            searchIcon.Position = UDim2.new(0, 8, 0, 0)
+            searchIcon.BackgroundTransparency = 1
+            searchIcon.Text = "🔍"
+            searchIcon.TextSize = 14
+            searchIcon.ZIndex = 8
+            searchIcon.Parent = searchFrame
+
+            local searchBox = Instance.new("TextBox")
+            searchBox.Size = UDim2.new(1, -44, 1, 0)
+            searchBox.Position = UDim2.new(0, 36, 0, 0)
+            searchBox.BackgroundTransparency = 1
+            searchBox.PlaceholderText = "Search..."
+            searchBox.PlaceholderColor3 = Theme.TextDim
+            searchBox.TextColor3 = Theme.Text
+            searchBox.TextSize = 13
+            searchBox.Font = Theme.FontLight
+            searchBox.ClearTextOnFocus = false
+            searchBox.TextXAlignment = Enum.TextXAlignment.Left
+            searchBox.ZIndex = 8
+            searchBox.Parent = searchFrame
+
+            AddConnection(searchBox.Focused:Connect(function() Tween(searchGlow, {Transparency = 0.3}, 0.2) end))
+            AddConnection(searchBox.FocusLost:Connect(function() Tween(searchGlow, {Transparency = 1}, 0.2) end))
+
+            -- Count label
+            local countOrder = NextOrder()
+            local countLabel = Instance.new("TextLabel")
+            countLabel.Size = UDim2.new(1, 0, 0, 20)
+            countLabel.BackgroundTransparency = 1
+            countLabel.TextColor3 = Theme.TextDim
+            countLabel.TextSize = 12
+            countLabel.Font = Theme.FontLight
+            countLabel.TextXAlignment = Enum.TextXAlignment.Left
+            countLabel.LayoutOrder = countOrder
+            countLabel.ZIndex = 7
+            countLabel.Parent = page
+
+            -- List container
+            local listOrder = NextOrder()
+            local listContainer = Instance.new("Frame")
+            listContainer.Name = "ProtectionList"
+            listContainer.Size = UDim2.new(1, 0, 0, 0)
+            listContainer.BackgroundColor3 = Color3.fromRGB(24, 24, 32)
+            listContainer.BorderSizePixel = 0
+            listContainer.LayoutOrder = listOrder
+            listContainer.ZIndex = 6
+            listContainer.AutomaticSize = Enum.AutomaticSize.Y
+            listContainer.Parent = page
+            Corner(listContainer)
+            Stroke(listContainer, Theme.Border, 1, 0.3)
+
+            local listLayout = Instance.new("UIListLayout")
+            listLayout.FillDirection = Enum.FillDirection.Vertical
+            listLayout.SortOrder = Enum.SortOrder.LayoutOrder
+            listLayout.Padding = UDim.new(0, 4)
+            listLayout.Parent = listContainer
+            Padding(listContainer, 6, 6, 6, 6)
+
+            local rowElements = {}
+            local hasPills = #pillDefs > 0
+            local rowHeight = hasPills and 78 or 44
+
+            local function updateCount()
+                local vis = 0
+                for _, rd in pairs(rowElements) do
+                    if rd.Frame.Visible then vis = vis + 1 end
+                end
+                countLabel.Text = tostring(vis) .. " / " .. tostring(#items) .. " " .. labelText
+            end
+
+            for i, item in ipairs(items) do
+                local isProtected = getProtected(item.Name)
+                local baseColor = (i % 2 == 0) and Theme.Row or Theme.RowAlt
+                local rarityColor = item.RarityColor or Theme.TextDim
+                local cpsText = item.CPS and (formatCPS(item.CPS) .. "/s") or "⭐ Special"
+
+                local row = Instance.new("Frame")
+                row.Name = "Item_" .. item.Name
+                row.Size = UDim2.new(1, -8, 0, rowHeight)
+                row.BackgroundColor3 = baseColor
+                row.BorderSizePixel = 0
+                row.LayoutOrder = i
+                row.ZIndex = 8
+                row.ClipsDescendants = true
+                row.Parent = listContainer
+                Corner(row, UDim.new(0, 7))
+
+                -- Hover bar
+                local hbar = Instance.new("Frame")
+                hbar.Size = UDim2.new(0, 3, 0.55, 0)
+                hbar.Position = UDim2.new(0, 0, 0.225, 0)
+                hbar.BackgroundColor3 = Theme.Accent
+                hbar.BackgroundTransparency = 1
+                hbar.BorderSizePixel = 0
+                hbar.ZIndex = 9
+                hbar.Parent = row
+                Corner(hbar, UDim.new(1, 0))
+
+                -- Rarity bar
+                local rbar = Instance.new("Frame")
+                rbar.Size = UDim2.new(0, 3, 0.65, 0)
+                rbar.Position = UDim2.new(0, 4, 0.175, 0)
+                rbar.BackgroundColor3 = rarityColor
+                rbar.BorderSizePixel = 0
+                rbar.ZIndex = 9
+                rbar.Parent = row
+                Corner(rbar, UDim.new(1, 0))
+
+                -- Rarity dot
+                local rdot = Instance.new("Frame")
+                rdot.Size = UDim2.new(0, 10, 0, 10)
+                rdot.Position = UDim2.new(0, 16, 0, 8)
+                rdot.BackgroundColor3 = rarityColor
+                rdot.BorderSizePixel = 0
+                rdot.ZIndex = 9
+                rdot.Parent = row
+                Corner(rdot, UDim.new(1, 0))
+
+                -- Special star
+                if item.Special then
+                    local star = Instance.new("TextLabel")
+                    star.Size = UDim2.new(0, 18, 0, 18)
+                    star.Position = UDim2.new(0, 30, 0, 3)
+                    star.BackgroundTransparency = 1
+                    star.Text = "⭐"
+                    star.TextSize = 12
+                    star.ZIndex = 10
+                    star.Parent = row
+                end
+
+                -- Name
+                local nameX = item.Special and 52 or 32
+                local nameLabel = Instance.new("TextLabel")
+                nameLabel.Size = UDim2.new(1, -160, 0, 22)
+                nameLabel.Position = UDim2.new(0, nameX, 0, 4)
+                nameLabel.BackgroundTransparency = 1
+                nameLabel.Text = item.Name
+                nameLabel.TextColor3 = Theme.Text
+                nameLabel.TextSize = 13
+                nameLabel.Font = Theme.FontLight
+                nameLabel.TextXAlignment = Enum.TextXAlignment.Left
+                nameLabel.TextTruncate = Enum.TextTruncate.AtEnd
+                nameLabel.ZIndex = 9
+                nameLabel.Parent = row
+
+                -- CPS badge
+                if item.CPS then
+                    local cpsBadge = Instance.new("Frame")
+                    cpsBadge.Size = UDim2.new(0, 72, 0, 20)
+                    cpsBadge.Position = UDim2.new(1, -130, 0, 4)
+                    cpsBadge.BackgroundColor3 = rarityColor
+                    cpsBadge.BackgroundTransparency = 0.85
+                    cpsBadge.BorderSizePixel = 0
+                    cpsBadge.ZIndex = 9
+                    cpsBadge.Parent = row
+                    Corner(cpsBadge, UDim.new(0, 5))
+                    local cpsLbl = Instance.new("TextLabel")
+                    cpsLbl.Size = UDim2.new(1, 0, 1, 0)
+                    cpsLbl.BackgroundTransparency = 1
+                    cpsLbl.Text = cpsText
+                    cpsLbl.TextColor3 = rarityColor
+                    cpsLbl.TextSize = 11
+                    cpsLbl.Font = Theme.Font
+                    cpsLbl.ZIndex = 10
+                    cpsLbl.Parent = cpsBadge
+                end
+
+                -- Protection toggle
+                local protBg = Instance.new("Frame")
+                protBg.Size = UDim2.new(0, 46, 0, 24)
+                protBg.Position = UDim2.new(1, -56, 0, 2)
+                protBg.BackgroundColor3 = isProtected and Theme.ProtectedOn or Theme.ProtectedOff
+                protBg.BorderSizePixel = 0
+                protBg.ZIndex = 10
+                protBg.Parent = row
+                Corner(protBg, UDim.new(1, 0))
+
+                local protCircle = Instance.new("Frame")
+                protCircle.Size = UDim2.new(0, 20, 0, 20)
+                protCircle.Position = isProtected and UDim2.new(1, -22, 0.5, -10) or UDim2.new(0, 2, 0.5, -10)
+                protCircle.BackgroundColor3 = Theme.Text
+                protCircle.BorderSizePixel = 0
+                protCircle.ZIndex = 11
+                protCircle.Parent = protBg
+                Corner(protCircle, UDim.new(1, 0))
+
+                local protBtn = Instance.new("TextButton")
+                protBtn.Size = UDim2.new(1, 0, 1, 0)
+                protBtn.BackgroundTransparency = 1
+                protBtn.Text = ""
+                protBtn.ZIndex = 13
+                protBtn.Parent = protBg
+
+                AddConnection(protBtn.MouseButton1Click:Connect(function()
+                    local newState = not getProtected(item.Name)
+                    setProtected(item.Name, newState)
+                    Tween(protBg, {BackgroundColor3 = newState and Theme.ProtectedOn or Theme.ProtectedOff}, 0.25)
+                    Tween(protCircle, {Position = newState and UDim2.new(1, -22, 0.5, -10) or UDim2.new(0, 2, 0.5, -10)}, 0.25, Enum.EasingStyle.Back)
+                    Tween(protCircle, {Size = UDim2.new(0, 22, 0, 22)}, 0.08)
+                    task.delay(0.08, function() Tween(protCircle, {Size = UDim2.new(0, 20, 0, 20)}, 0.12) end)
+                    if onProtChanged then task.spawn(onProtChanged, item.Name, newState) end
+                end))
+
+                -- Mutation pills (if provided)
+                local pillRefs = {}
+                if hasPills then
+                    local divider = Instance.new("Frame")
+                    divider.Size = UDim2.new(1, -20, 0, 1)
+                    divider.Position = UDim2.new(0, 10, 0, 33)
+                    divider.BackgroundColor3 = Theme.Border
+                    divider.BackgroundTransparency = 0.5
+                    divider.BorderSizePixel = 0
+                    divider.ZIndex = 9
+                    divider.Parent = row
+
+                    local mutIcon = Instance.new("TextLabel")
+                    mutIcon.Size = UDim2.new(0, 20, 0, 30)
+                    mutIcon.Position = UDim2.new(0, 10, 0, 36)
+                    mutIcon.BackgroundTransparency = 1
+                    mutIcon.Text = "🧬"
+                    mutIcon.TextSize = 11
+                    mutIcon.ZIndex = 9
+                    mutIcon.Parent = row
+
+                    local pillContainer = Instance.new("Frame")
+                    pillContainer.Size = UDim2.new(1, -36, 0, 26)
+                    pillContainer.Position = UDim2.new(0, 30, 0, 38)
+                    pillContainer.BackgroundTransparency = 1
+                    pillContainer.ZIndex = 9
+                    pillContainer.Parent = row
+
+                    local pillLayout2 = Instance.new("UIListLayout")
+                    pillLayout2.FillDirection = Enum.FillDirection.Horizontal
+                    pillLayout2.VerticalAlignment = Enum.VerticalAlignment.Center
+                    pillLayout2.SortOrder = Enum.SortOrder.LayoutOrder
+                    pillLayout2.Padding = UDim.new(0, 4)
+                    pillLayout2.Parent = pillContainer
+
+                    local currentMode = getMutMode(item.Name)
+
+                    local function refreshPills(selectedKey)
+                        for _, p in ipairs(pillRefs) do
+                            local active = (p.Key == selectedKey)
+                            Tween(p.Frame, {
+                                BackgroundColor3 = active and p.Color or Theme.SliderBg,
+                                BackgroundTransparency = active and 0.1 or 0,
+                            }, 0.15)
+                            Tween(p.Label, {TextColor3 = active and Color3.fromRGB(255,255,255) or Theme.TextDim}, 0.15)
+                            Tween(p.Stroke, {Color = active and p.Color or Theme.Border, Transparency = active and 0.2 or 0.7}, 0.15)
+                        end
+                    end
+
+                    for idx, def in ipairs(pillDefs) do
+                        local isActive = (currentMode == def.Key)
+
+                        local pill = Instance.new("Frame")
+                        pill.Size = UDim2.new(0, 0, 0, 20)
+                        pill.AutomaticSize = Enum.AutomaticSize.X
+                        pill.BackgroundColor3 = isActive and def.Color or Theme.SliderBg
+                        pill.BackgroundTransparency = isActive and 0.1 or 0
+                        pill.BorderSizePixel = 0
+                        pill.LayoutOrder = idx
+                        pill.ZIndex = 10
+                        pill.Parent = pillContainer
+                        Corner(pill, UDim.new(0, 5))
+
+                        local pillStroke = Stroke(pill, isActive and def.Color or Theme.Border, 1, isActive and 0.2 or 0.7)
+                        Padding(pill, 0, 0, 6, 6)
+
+                        local pillLabel = Instance.new("TextLabel")
+                        pillLabel.Size = UDim2.new(0, 0, 1, 0)
+                        pillLabel.AutomaticSize = Enum.AutomaticSize.X
+                        pillLabel.BackgroundTransparency = 1
+                        pillLabel.Text = def.Short
+                        pillLabel.TextColor3 = isActive and Color3.fromRGB(255,255,255) or Theme.TextDim
+                        pillLabel.TextSize = 10
+                        pillLabel.Font = Theme.FontLight
+                        pillLabel.ZIndex = 11
+                        pillLabel.Parent = pill
+
+                        local pillBtn = Instance.new("TextButton")
+                        pillBtn.Size = UDim2.new(1, 0, 1, 0)
+                        pillBtn.BackgroundTransparency = 1
+                        pillBtn.Text = ""
+                        pillBtn.ZIndex = 12
+                        pillBtn.Parent = pill
+
+                        table.insert(pillRefs, {Key = def.Key, Color = def.Color, Frame = pill, Label = pillLabel, Stroke = pillStroke})
+
+                        AddConnection(pillBtn.MouseEnter:Connect(function()
+                            if getMutMode(item.Name) ~= def.Key then Tween(pill, {BackgroundColor3 = Theme.Hover}, 0.1) end
+                        end))
+                        AddConnection(pillBtn.MouseLeave:Connect(function()
+                            if getMutMode(item.Name) ~= def.Key then Tween(pill, {BackgroundColor3 = Theme.SliderBg}, 0.1) end
+                        end))
+                        AddConnection(pillBtn.MouseButton1Click:Connect(function()
+                            local cur = getMutMode(item.Name)
+                            local newKey = (cur == def.Key) and "NONE" or def.Key
+                            setMutMode(item.Name, newKey)
+                            refreshPills(newKey)
+                            Tween(pill, {Size = UDim2.new(0, 0, 0, 22)}, 0.07)
+                            task.delay(0.07, function() Tween(pill, {Size = UDim2.new(0, 0, 0, 20)}, 0.1) end)
+                            if onMutChanged then task.spawn(onMutChanged, item.Name, newKey) end
+                        end))
+                    end
+                end
+
+                -- Row hover
+                AddConnection(row.MouseEnter:Connect(function()
+                    Tween(row, {BackgroundColor3 = Theme.Hover}, 0.15)
+                    Tween(hbar, {BackgroundTransparency = 0.2}, 0.15)
+                end))
+                AddConnection(row.MouseLeave:Connect(function()
+                    Tween(row, {BackgroundColor3 = baseColor}, 0.15)
+                    Tween(hbar, {BackgroundTransparency = 1}, 0.15)
+                end))
+
+                rowElements[item.Name] = {Frame = row, OriginalColor = baseColor, PillRefs = pillRefs}
+            end
+
+            updateCount()
+
+            -- Search filter
+            AddConnection(searchBox:GetPropertyChangedSignal("Text"):Connect(function()
+                local filter = searchBox.Text:lower()
+                local visOrder = 1
+                for _, item in ipairs(items) do
+                    local rd = rowElements[item.Name]
+                    if not rd then continue end
+                    local visible = filter == ""
+                        or item.Name:lower():find(filter, 1, true)
+                        or (item.Rarity and item.Rarity:lower():find(filter, 1, true))
+                    rd.Frame.Visible = visible
+                    if visible then
+                        rd.Frame.LayoutOrder = visOrder
+                        local nc = (visOrder % 2 == 0) and Theme.Row or Theme.RowAlt
+                        rd.Frame.BackgroundColor3 = nc
+                        rd.OriginalColor = nc
+                        visOrder = visOrder + 1
+                    end
+                end
+                updateCount()
+            end))
+
+            return {
+                GetRows = function() return rowElements end,
+                Refresh = function()
+                    for _, item in ipairs(items) do
+                        local rd = rowElements[item.Name]
+                        if not rd then continue end
+                        local isProt = getProtected(item.Name)
+                        -- update toggle visual
+                    end
+                end,
+            }
+        end
+
         -- INTERVAL TOGGLE (Toggle + TextBox for seconds)
         function Tab:AddIntervalToggle(labelText, default, callback, intervalDefault)
             local order = NextOrder()
