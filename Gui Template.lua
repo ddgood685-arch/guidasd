@@ -677,8 +677,8 @@ function GluttonyUI:CreateWindow(options)
             wt.Font=Theme.FontLight; wt.TextXAlignment=Enum.TextXAlignment.Left; wt.TextWrapped=true
             wt.ZIndex=7; wt.Parent=f; return f
         end
-
-                -- INTERVAL TOGGLE (Toggle + TextBox for seconds)
+        
+        -- INTERVAL TOGGLE (Toggle + TextBox for seconds)
         function Tab:AddIntervalToggle(labelText, default, callback, intervalDefault)
             local order = NextOrder()
             
@@ -689,7 +689,7 @@ function GluttonyUI:CreateWindow(options)
             
             local intervalKey = labelText .. "_interval"
             local savedInterval = StateStore[intervalKey]
-            local intervalValue = (savedInterval ~= nil) and savedInterval or (intervalDefault or 1)
+            local intervalValue = math.max(1, math.floor(tonumber(tostring(savedInterval ~= nil and savedInterval or (intervalDefault or 1))) or 1))
             StateStore[intervalKey] = intervalValue
 
             local row = Instance.new("Frame")
@@ -769,18 +769,21 @@ function GluttonyUI:CreateWindow(options)
             -- Functions
             local function StartLoop()
                 if state and callback then
-                    ThreadManager:Start(labelText, function() return intervalValue end, function()
-                        callback(state)
+                    -- Force intervalValue to always be a clean number
+                    local safeInterval = math.max(1, math.floor(tonumber(tostring(intervalValue)) or 1))
+                    ThreadManager:Start(labelText, safeInterval, function()
+                        callback()
                     end)
                 end
             end
 
             AddConnection(input.FocusLost:Connect(function()
-                local val = tonumber(input.Text)
-                if val and val > 0 then
+                local val = math.floor(tonumber(tostring(input.Text)) or 0)
+                if val and val >= 1 then
                     intervalValue = val
                     ConfigManager:Set(intervalKey, val)
-                    if state then StartLoop() end -- Restart thread with new interval
+                    input.Text = tostring(val)
+                    if state then StartLoop() end
                 else
                     input.Text = tostring(intervalValue)
                 end
