@@ -678,6 +678,140 @@ function GluttonyUI:CreateWindow(options)
             wt.ZIndex=7; wt.Parent=f; return f
         end
 
+                -- INTERVAL TOGGLE (Toggle + TextBox for seconds)
+        function Tab:AddIntervalToggle(labelText, default, callback, intervalDefault)
+            local order = NextOrder()
+            
+            -- State
+            local savedState = StateStore[labelText]
+            local state = (savedState ~= nil) and savedState or (default or false)
+            StateStore[labelText] = state
+            
+            local intervalKey = labelText .. "_interval"
+            local savedInterval = StateStore[intervalKey]
+            local intervalValue = (savedInterval ~= nil) and savedInterval or (intervalDefault or 1)
+            StateStore[intervalKey] = intervalValue
+
+            local row = Instance.new("Frame")
+            row.Size = UDim2.new(1, 0, 0, Theme.RowHeight)
+            row.BackgroundColor3 = RowColor(order)
+            row.BorderSizePixel = 0
+            row.LayoutOrder = order
+            row.ZIndex = 6
+            row.ClipsDescendants = true
+            row.Parent = page
+            Corner(row, Theme.CornerRadius)
+            local ab = HoverAccent(row)
+
+            local lbl = Instance.new("TextLabel")
+            lbl.Size = UDim2.new(1, -180, 1, 0)
+            lbl.Position = UDim2.new(0, 18, 0, 0)
+            lbl.BackgroundTransparency = 1
+            lbl.Text = labelText
+            lbl.TextColor3 = Theme.Text
+            lbl.TextSize = 14
+            lbl.Font = Theme.FontLight
+            lbl.TextXAlignment = Enum.TextXAlignment.Left
+            lbl.ZIndex = 7
+            lbl.Parent = row
+
+            -- Interval Input Box
+            local ibg = Instance.new("Frame")
+            ibg.Size = UDim2.new(0, 50, 0, 26)
+            ibg.Position = UDim2.new(1, -115, 0.5, -13)
+            ibg.BackgroundColor3 = Theme.InputBg
+            ibg.BorderSizePixel = 0
+            ibg.ZIndex = 8
+            ibg.Parent = row
+            Corner(ibg, UDim.new(0, 6))
+            local gs = Stroke(ibg, Theme.Accent, 1.5, 1)
+
+            local input = Instance.new("TextBox")
+            input.Size = UDim2.new(1, 0, 1, 0)
+            input.BackgroundTransparency = 1
+            input.Text = tostring(intervalValue)
+            input.PlaceholderText = "sec"
+            input.PlaceholderColor3 = Theme.TextDim
+            input.TextColor3 = Theme.Text
+            input.TextSize = 12
+            input.Font = Theme.FontLight
+            input.ClearTextOnFocus = true
+            input.TextXAlignment = Enum.TextXAlignment.Center
+            input.ZIndex = 9
+            input.Parent = ibg
+
+            -- Toggle Switch
+            local tbg = Instance.new("Frame")
+            tbg.Size = UDim2.new(0, 46, 0, 24)
+            tbg.Position = UDim2.new(1, -60, 0.5, -12)
+            tbg.BackgroundColor3 = state and Theme.ToggleOn or Theme.ToggleOff
+            tbg.BorderSizePixel = 0
+            tbg.ZIndex = 8
+            tbg.Parent = row
+            Corner(tbg, UDim.new(1, 0))
+
+            local circle = Instance.new("Frame")
+            circle.Size = UDim2.new(0, 20, 0, 20)
+            circle.Position = state and UDim2.new(1, -22, 0.5, -10) or UDim2.new(0, 2, 0.5, -10)
+            circle.BackgroundColor3 = Theme.Text
+            circle.BorderSizePixel = 0
+            circle.ZIndex = 9
+            circle.Parent = tbg
+            Corner(circle, UDim.new(1, 0))
+
+            local btn = Instance.new("TextButton")
+            btn.Size = UDim2.new(1, 0, 1, 0)
+            btn.BackgroundTransparency = 1
+            btn.Text = ""
+            btn.ZIndex = 10
+            btn.Parent = tbg
+
+            -- Functions
+            local function StartLoop()
+                if state and callback then
+                    ThreadManager:Start(labelText, function() return intervalValue end, function()
+                        callback(state)
+                    end)
+                end
+            end
+
+            AddConnection(input.FocusLost:Connect(function()
+                local val = tonumber(input.Text)
+                if val and val > 0 then
+                    intervalValue = val
+                    ConfigManager:Set(intervalKey, val)
+                    if state then StartLoop() end -- Restart thread with new interval
+                else
+                    input.Text = tostring(intervalValue)
+                end
+                Tween(gs, {Transparency = 1}, 0.2)
+            end))
+            
+            AddConnection(input.Focused:Connect(function() Tween(gs, {Transparency = 0.4}, 0.2) end))
+
+            AddConnection(btn.MouseButton1Click:Connect(function()
+                state = not state
+                ConfigManager:Set(labelText, state)
+                Tween(tbg, {BackgroundColor3 = state and Theme.ToggleOn or Theme.ToggleOff}, 0.2)
+                Tween(circle, {Position = state and UDim2.new(1, -22, 0.5, -10) or UDim2.new(0, 2, 0.5, -10)}, 0.2, Enum.EasingStyle.Back)
+                if state then StartLoop() else ThreadManager:Stop(labelText) end
+            end))
+
+            if state then task.defer(StartLoop) end
+            SetupHover(row, RowColor(order), ab)
+            
+            return {
+                Set = function(_, v) 
+                    state = v
+                    ConfigManager:Set(labelText, v)
+                    Tween(tbg, {BackgroundColor3 = state and Theme.ToggleOn or Theme.ToggleOff}, 0.2)
+                    Tween(circle, {Position = state and UDim2.new(1, -22, 0.5, -10) or UDim2.new(0, 2, 0.5, -10)}, 0.2)
+                    if state then StartLoop() else ThreadManager:Stop(labelText) end
+                end,
+                Get = function() return state end
+            }
+        end
+
         -- TOGGLE
         function Tab:AddToggle(labelText,default,intervalOrCallback,callbackOrNil)
             local order=NextOrder(); local interval,callback
