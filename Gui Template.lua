@@ -1588,12 +1588,13 @@ function GluttonyUI:CreateWindow(options)
 
                     local ddFrame = Instance.new("Frame")
                     ddFrame.Size = UDim2.new(0, ddWidth, 0, 24)
-                    ddFrame.Position = UDim2.new(1, -(52+ddWidth), 0.5, -12)
+                    ddFrame.Position = UDim2.new(1, -(52 + ddWidth), 0.5, -12)
                     ddFrame.BackgroundColor3 = Theme.InputBg
                     ddFrame.BorderSizePixel = 0
                     ddFrame.ZIndex = 10
                     ddFrame.Parent = ir
                     Corner(ddFrame, UDim.new(0, 5))
+                    Stroke(ddFrame, Theme.Border, 1, 0.5)
 
                     ddBtnLabel = Instance.new("TextLabel")
                     ddBtnLabel.Size = UDim2.new(1, -14, 1, 0)
@@ -1608,33 +1609,56 @@ function GluttonyUI:CreateWindow(options)
                     ddBtnLabel.ZIndex = 11
                     ddBtnLabel.Parent = ddFrame
 
-                    local ddArrow = Instance.new("TextLabel")
-                    ddArrow.Size = UDim2.new(0, 10, 1, 0)
-                    ddArrow.Position = UDim2.new(1, -12, 0, 0)
-                    ddArrow.BackgroundTransparency = 1
-                    ddArrow.Text = "▼"
-                    ddArrow.TextColor3 = Theme.Accent
-                    ddArrow.TextSize = 8
-                    ddArrow.Font = Theme.Font
-                    ddArrow.ZIndex = 11
-                    ddArrow.Parent = ddFrame
+                    -- Arrow container (matches main dropdown style)
+                    local ddArrowFrame = Instance.new("Frame")
+                    ddArrowFrame.Size = UDim2.new(0, 10, 0, 10)
+                    ddArrowFrame.Position = UDim2.new(1, -14, 0.5, -5)
+                    ddArrowFrame.BackgroundTransparency = 1
+                    ddArrowFrame.ZIndex = 11
+                    ddArrowFrame.Parent = ddFrame
+
+                    local ddArrowL = Instance.new("Frame")
+                    ddArrowL.Size = UDim2.new(0, 5, 0, 2)
+                    ddArrowL.Position = UDim2.new(0, 0, 0.5, -1)
+                    ddArrowL.AnchorPoint = Vector2.new(0, 0.5)
+                    ddArrowL.BackgroundColor3 = Theme.Accent
+                    ddArrowL.Rotation = 35
+                    ddArrowL.BorderSizePixel = 0
+                    ddArrowL.ZIndex = 12
+                    ddArrowL.Parent = ddArrowFrame
+                    Corner(ddArrowL, UDim.new(1, 0))
+
+                    local ddArrowR = Instance.new("Frame")
+                    ddArrowR.Size = UDim2.new(0, 5, 0, 2)
+                    ddArrowR.Position = UDim2.new(1, 0, 0.5, -1)
+                    ddArrowR.AnchorPoint = Vector2.new(1, 0.5)
+                    ddArrowR.BackgroundColor3 = Theme.Accent
+                    ddArrowR.Rotation = -35
+                    ddArrowR.BorderSizePixel = 0
+                    ddArrowR.ZIndex = 12
+                    ddArrowR.Parent = ddArrowFrame
+                    Corner(ddArrowR, UDim.new(1, 0))
 
                     local ddClickBtn = Instance.new("TextButton")
                     ddClickBtn.Size = UDim2.new(1, 0, 1, 0)
                     ddClickBtn.BackgroundTransparency = 1
                     ddClickBtn.Text = ""
-                    ddClickBtn.ZIndex = 12
+                    ddClickBtn.ZIndex = 13
                     ddClickBtn.Parent = ddFrame
 
-                    -- Dropdown panel (parented to cf so it floats above rows)
-                    local ddPanel = Instance.new("Frame")
-                    ddPanel.Size = UDim2.new(0, ddWidth + 20, 0, 0)
+                    -- Panel parented to inner so it floats above everything
+                    local ddPanelWidth = math.max(ddWidth + 30, 90)
+                    local ddPanel = Instance.new("ScrollingFrame")
+                    ddPanel.Size = UDim2.new(0, ddPanelWidth, 0, 0)
                     ddPanel.BackgroundColor3 = Theme.DropdownBg
                     ddPanel.BorderSizePixel = 0
                     ddPanel.ClipsDescendants = true
+                    ddPanel.ScrollBarThickness = 3
+                    ddPanel.ScrollBarImageColor3 = Theme.Accent
+                    ddPanel.ScrollBarImageTransparency = 0.3
                     ddPanel.Visible = false
                     ddPanel.ZIndex = 500
-                    ddPanel.Parent = cf
+                    ddPanel.Parent = inner
                     Corner(ddPanel, UDim.new(0, 6))
                     Stroke(ddPanel, Theme.Accent, 1, 0.6)
 
@@ -1646,22 +1670,92 @@ function GluttonyUI:CreateWindow(options)
                     Padding(ddPanel, 4, 4, 4, 4)
 
                     local ddIsOpen = false
+                    local ddFlipped = false
+                    local ddTrackConn = nil
+                    local ddTargetH = 0
+
+                    -- Position tracking (follows the row while scrolling)
+                    local function GetDDPosition(targetH)
+                        local ddAbsPos = ddFrame.AbsolutePosition
+                        local ddAbsSize = ddFrame.AbsoluteSize
+                        local innerAbsPos = inner.AbsolutePosition
+                        local innerAbsSize = inner.AbsoluteSize
+
+                        local relX = ddAbsPos.X - innerAbsPos.X
+                        local relYBelow = ddAbsPos.Y - innerAbsPos.Y + ddAbsSize.Y + 4
+                        local relYAbove = ddAbsPos.Y - innerAbsPos.Y - targetH - 4
+
+                        -- Check if panel would go off screen below
+                        if relYBelow + targetH > innerAbsSize.Y and relYAbove >= 0 then
+                            ddFlipped = true
+                            return UDim2.new(0, relX, 0, relYAbove)
+                        else
+                            ddFlipped = false
+                            return UDim2.new(0, relX, 0, relYBelow)
+                        end
+                    end
+
+                    local function StartDDTracking(targetH)
+                        if ddTrackConn then return end
+                        ddTrackConn = RunService.Heartbeat:Connect(function()
+                            if ddIsOpen and ddPanel.Visible then
+                                -- Check if the row is still visible in the scroll area
+                                local rowAbsPos = ir.AbsolutePosition
+                                local sfAbsPos = sf.AbsolutePosition
+                                local sfAbsSize = sf.AbsoluteSize
+
+                                local rowTop = rowAbsPos.Y
+                                local rowBot = rowAbsPos.Y + ir.AbsoluteSize.Y
+                                local sfTop = sfAbsPos.Y
+                                local sfBot = sfAbsPos.Y + sfAbsSize.Y
+
+                                -- If row scrolled out of view, close dropdown
+                                if rowBot < sfTop or rowTop > sfBot then
+                                    ddIsOpen = false
+                                    if ddTrackConn then ddTrackConn:Disconnect(); ddTrackConn = nil end
+                                    ddPanel.Visible = false
+                                    ddPanel.Size = UDim2.new(0, ddPanelWidth, 0, 0)
+                                    Tween(ddArrowFrame, {Rotation = 0}, 0.15)
+                                    if activeRowDropdown == ddPanel then activeRowDropdown = nil end
+                                    return
+                                end
+
+                                ddPanel.Position = GetDDPosition(targetH)
+                            end
+                        end)
+                    end
+
+                    local function StopDDTracking()
+                        if ddTrackConn then ddTrackConn:Disconnect(); ddTrackConn = nil end
+                    end
 
                     local function closeDD()
                         if not ddIsOpen then return end
                         ddIsOpen = false
-                        Tween(ddPanel, {Size = UDim2.new(0, ddWidth + 20, 0, 0)}, 0.15)
-                        task.delay(0.15, function() ddPanel.Visible = false end)
-                        Tween(ddArrow, {Rotation = 0}, 0.15)
+                        StopDDTracking()
+                        Tween(ddPanel, {Size = UDim2.new(0, ddPanelWidth, 0, 0)}, 0.2)
+                        Tween(ddArrowFrame, {Rotation = 0}, 0.2)
+                        task.delay(0.2, function()
+                            if not ddIsOpen then ddPanel.Visible = false end
+                        end)
                         if activeRowDropdown == ddPanel then activeRowDropdown = nil end
                     end
 
                     local function openDD()
-                        -- Close any other open dropdown
+                        -- Close any other open row dropdown
                         if activeRowDropdown and activeRowDropdown ~= ddPanel then
                             activeRowDropdown.Visible = false
-                            activeRowDropdown.Size = UDim2.new(0, ddWidth + 20, 0, 0)
+                            activeRowDropdown.Size = UDim2.new(0, ddPanelWidth, 0, 0)
+                            activeRowDropdown = nil
                         end
+
+                        -- Also close the main tab dropdown if open
+                        if activeDropdownPanel and activeDropdownPanel.Parent then
+                            activeDropdownPanel.Visible = false
+                            activeDropdownPanel.Size = UDim2.new(0, 0, 0, 0)
+                            activeDropdownPanel = nil
+                        end
+
                         activeRowDropdown = ddPanel
                         ddIsOpen = true
 
@@ -1673,7 +1767,7 @@ function GluttonyUI:CreateWindow(options)
                         -- Build options
                         for oi, optName in ipairs(ddOpts) do
                             local optBtn = Instance.new("TextButton")
-                            optBtn.Size = UDim2.new(1, 0, 0, 24)
+                            optBtn.Size = UDim2.new(1, 0, 0, 26)
                             optBtn.BackgroundColor3 = (currentVal == optName) and Color3.fromRGB(40, 50, 65) or Theme.DropdownBg
                             optBtn.Text = optName
                             optBtn.TextColor3 = (currentVal == optName) and Theme.Accent or Theme.Text
@@ -1687,32 +1781,49 @@ function GluttonyUI:CreateWindow(options)
                             Corner(optBtn, UDim.new(0, 4))
 
                             AddConnection(optBtn.MouseEnter:Connect(function()
-                                if currentVal ~= optName then Tween(optBtn, {BackgroundColor3 = Theme.DropdownHover}, 0.1) end
+                                if currentVal ~= optName then
+                                    Tween(optBtn, {BackgroundColor3 = Theme.DropdownHover}, 0.1)
+                                end
                             end))
                             AddConnection(optBtn.MouseLeave:Connect(function()
-                                if currentVal ~= optName then Tween(optBtn, {BackgroundColor3 = Theme.DropdownBg}, 0.1) end
+                                if currentVal ~= optName then
+                                    Tween(optBtn, {BackgroundColor3 = Theme.DropdownBg}, 0.1)
+                                end
                             end))
 
                             AddConnection(optBtn.MouseButton1Click:Connect(function()
                                 currentVal = optName
                                 ddSetVal(in_, optName)
                                 ddBtnLabel.Text = optName
+
+                                -- Update button styles
+                                for _, ch2 in pairs(ddPanel:GetChildren()) do
+                                    if ch2:IsA("TextButton") then
+                                        local isSel = (ch2.Text == optName)
+                                        Tween(ch2, {
+                                            BackgroundColor3 = isSel and Color3.fromRGB(40, 50, 65) or Theme.DropdownBg,
+                                            TextColor3 = isSel and Theme.Accent or Theme.Text
+                                        }, 0.15)
+                                    end
+                                end
+
                                 closeDD()
                             end))
                         end
 
-                        -- Position panel below the dropdown button
-                        local targetH = math.min(#ddOpts * 26 + 10, 200)
-                        local ddAbsPos = ddFrame.AbsolutePosition
-                        local cfAbsPos = cf.AbsolutePosition
-                        local relX = ddAbsPos.X - cfAbsPos.X
-                        local relY = ddAbsPos.Y - cfAbsPos.Y + ddFrame.AbsoluteSize.Y + 4
+                        -- Calculate size
+                        ddTargetH = math.min(#ddOpts * 28 + 10, 180)
+                        ddPanel.CanvasSize = UDim2.new(0, 0, 0, ddPanelLayout.AbsoluteContentSize.Y + 10)
 
-                        ddPanel.Position = UDim2.new(0, relX, 0, relY)
-                        ddPanel.Size = UDim2.new(0, ddWidth + 20, 0, 0)
+                        -- Position and animate
+                        ddPanel.Position = GetDDPosition(ddTargetH)
+                        ddPanel.Size = UDim2.new(0, ddPanelWidth, 0, 0)
                         ddPanel.Visible = true
-                        Tween(ddPanel, {Size = UDim2.new(0, ddWidth + 20, 0, targetH)}, 0.2)
-                        Tween(ddArrow, {Rotation = 180}, 0.2)
+                        Tween(ddPanel, {Size = UDim2.new(0, ddPanelWidth, 0, ddTargetH)}, 0.25, Enum.EasingStyle.Back)
+                        Tween(ddArrowFrame, {Rotation = ddFlipped and 0 or 180}, 0.25)
+
+                        -- Start tracking position
+                        StartDDTracking(ddTargetH)
                     end
 
                     AddConnection(ddClickBtn.MouseButton1Click:Connect(function()
