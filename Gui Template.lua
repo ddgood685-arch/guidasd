@@ -481,11 +481,12 @@ function GluttonyUI:CreateWindow(options)
     -- MAIN FRAME
     local main=Instance.new("Frame"); main.Name="Main"
     main.Size=UDim2.new(0,WW,0,WH)
-    -- Mobile: center on screen properly
+    -- MAIN FRAME position — replace the existing position block
     if _isMobile then
-        main.Position=UDim2.new(0.5,-WW/2,0.5,-WH/2)
+        -- Pure offset so position math is always predictable
+        main.Position = UDim2.new(0, math.floor((_screenSize.X - WW) / 2), 0, math.floor((_screenSize.Y - WH) / 2))
     else
-        main.Position=UDim2.new(0.5,-WW/2,0.5,-WH/2)
+        main.Position = UDim2.new(0.5, -WW/2, 0.5, -WH/2)
     end
     main.BackgroundColor3=Theme.Background; main.BorderSizePixel=0
     main.ClipsDescendants=true; main.Parent=screenGui
@@ -600,49 +601,37 @@ function GluttonyUI:CreateWindow(options)
         end
     end))
 
-    -- DRAG (works for both mouse and touch) - FIXED
-    local dragging = false
-    local dragStartInput = nil
-    local startPos = nil
+    -- DRAG (PC only — mobile is fixed position, no drag)
+    if not _isMobile then
+        local dragging      = false
+        local dragStartInput = nil
+        local startPos      = nil
 
-    AddConnection(titleBar.InputBegan:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1
-        or input.UserInputType == Enum.UserInputType.Touch then
-            dragging = true
+        AddConnection(titleBar.InputBegan:Connect(function(input)
+            if input.UserInputType ~= Enum.UserInputType.MouseButton1 then return end
+            dragging      = true
             dragStartInput = Vector2.new(input.Position.X, input.Position.Y)
-            local absPos = main.AbsolutePosition
-            startPos = UDim2.new(0, absPos.X, 0, absPos.Y)
-        end
-    end))
+            local absPos  = main.AbsolutePosition
+            startPos      = UDim2.new(0, absPos.X, 0, absPos.Y)
+        end))
 
-    AddConnection(UserInputService.InputChanged:Connect(function(input)
-        if not dragging or not dragStartInput or not startPos then return end
-        if input.UserInputType ~= Enum.UserInputType.MouseMovement
-        and input.UserInputType ~= Enum.UserInputType.Touch then return end
-
-        local current = Vector2.new(input.Position.X, input.Position.Y)
-        local d = current - dragStartInput
-
-        if _isMobile then
-            local sx = _screenSize.X
-            local sy = _screenSize.Y
-            local nx = math.clamp(startPos.X.Offset + d.X, 0, sx - WW)
-            local ny = math.clamp(startPos.Y.Offset + d.Y, 0, sy - WH)
-            main.Position = UDim2.new(0, nx, 0, ny)        else
+        AddConnection(UserInputService.InputChanged:Connect(function(input)
+            if not dragging or not dragStartInput or not startPos then return end
+            if input.UserInputType ~= Enum.UserInputType.MouseMovement then return end
+            local current = Vector2.new(input.Position.X, input.Position.Y)
+            local d       = current - dragStartInput
             main.Position = UDim2.new(
                 startPos.X.Scale, startPos.X.Offset + d.X,
                 startPos.Y.Scale, startPos.Y.Offset + d.Y)
-        end
-    end))
+        end))
 
-    AddConnection(UserInputService.InputEnded:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1
-        or input.UserInputType == Enum.UserInputType.Touch then
-            dragging = false
+        AddConnection(UserInputService.InputEnded:Connect(function(input)
+            if input.UserInputType ~= Enum.UserInputType.MouseButton1 then return end
+            dragging       = false
             dragStartInput = nil
-            startPos = nil
-        end
-    end))   
+            startPos       = nil
+        end))
+    end
 
     -- SIDEBAR
     local sidebar=Instance.new("Frame")
