@@ -600,51 +600,49 @@ function GluttonyUI:CreateWindow(options)
         end
     end))
 
-    -- DRAG (works for both mouse and touch)
-    local dragging,dragStart,startPos=false,nil,nil; local dragInput=nil
-
-    local function GetInputPos(input)
-        if input.UserInputType == Enum.UserInputType.Touch then
-            return input.Position
-        end
-        return input.Position
-    end
+    -- DRAG (works for both mouse and touch) - FIXED
+    local dragging = false
+    local dragStartInput = nil
+    local startPos = nil
 
     AddConnection(titleBar.InputBegan:Connect(function(input)
-        if input.UserInputType==Enum.UserInputType.MouseButton1
-            or input.UserInputType==Enum.UserInputType.Touch then
-            dragging=true
-            dragStart=GetInputPos(input)
-            startPos=main.Position
-            local ec; ec=input.Changed:Connect(function()
-                if input.UserInputState==Enum.UserInputState.End then
-                    dragging=false; if ec then ec:Disconnect() end
-                end
-            end)
+        if input.UserInputType == Enum.UserInputType.MouseButton1
+        or input.UserInputType == Enum.UserInputType.Touch then
+            dragging = true
+            dragStartInput = Vector2.new(input.Position.X, input.Position.Y)
+            startPos = main.Position
         end
     end))
-    AddConnection(titleBar.InputChanged:Connect(function(input)
-        if input.UserInputType==Enum.UserInputType.MouseMovement
-            or input.UserInputType==Enum.UserInputType.Touch then
-            dragInput=input
-        end
-    end))
+
     AddConnection(UserInputService.InputChanged:Connect(function(input)
-        if input==dragInput and dragging and startPos then
-            local d=GetInputPos(input)-dragStart
-            -- Clamp to screen on mobile
-            if _isMobile then
-                local sx=_screenSize.X; local sy=_screenSize.Y
-                local nx=math.clamp(startPos.X.Offset+d.X, -WW*0.3, sx-WW*0.7)
-                local ny=math.clamp(startPos.Y.Offset+d.Y, -WH*0.3, sy-WH*0.7)
-                main.Position=UDim2.new(startPos.X.Scale,nx,startPos.Y.Scale,ny)
-            else
-                main.Position=UDim2.new(
-                    startPos.X.Scale, startPos.X.Offset+d.X,
-                    startPos.Y.Scale, startPos.Y.Offset+d.Y)
-            end
+        if not dragging or not dragStartInput or not startPos then return end
+        if input.UserInputType ~= Enum.UserInputType.MouseMovement
+        and input.UserInputType ~= Enum.UserInputType.Touch then return end
+
+        local current = Vector2.new(input.Position.X, input.Position.Y)
+        local d = current - dragStartInput
+
+        if _isMobile then
+            local sx = _screenSize.X
+            local sy = _screenSize.Y
+            local nx = math.clamp(startPos.X.Offset + d.X, 0, sx - WW)
+            local ny = math.clamp(startPos.Y.Offset + d.Y, 0, sy - WH)
+            main.Position = UDim2.new(startPos.X.Scale, nx, startPos.Y.Scale, ny)
+        else
+            main.Position = UDim2.new(
+                startPos.X.Scale, startPos.X.Offset + d.X,
+                startPos.Y.Scale, startPos.Y.Offset + d.Y)
         end
     end))
+
+    AddConnection(UserInputService.InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1
+        or input.UserInputType == Enum.UserInputType.Touch then
+            dragging = false
+            dragStartInput = nil
+            startPos = nil
+        end
+    end))   
 
     -- SIDEBAR
     local sidebar=Instance.new("Frame")
