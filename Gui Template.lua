@@ -610,7 +610,8 @@ function GluttonyUI:CreateWindow(options)
         or input.UserInputType == Enum.UserInputType.Touch then
             dragging = true
             dragStartInput = Vector2.new(input.Position.X, input.Position.Y)
-            startPos = main.Position
+            local absPos = main.AbsolutePosition
+            startPos = UDim2.new(0, absPos.X, 0, absPos.Y)
         end
     end))
 
@@ -627,8 +628,7 @@ function GluttonyUI:CreateWindow(options)
             local sy = _screenSize.Y
             local nx = math.clamp(startPos.X.Offset + d.X, 0, sx - WW)
             local ny = math.clamp(startPos.Y.Offset + d.Y, 0, sy - WH)
-            main.Position = UDim2.new(startPos.X.Scale, nx, startPos.Y.Scale, ny)
-        else
+            main.Position = UDim2.new(0, nx, 0, ny)        else
             main.Position = UDim2.new(
                 startPos.X.Scale, startPos.X.Offset + d.X,
                 startPos.Y.Scale, startPos.Y.Offset + d.Y)
@@ -2771,184 +2771,242 @@ function GluttonyUI:CreateWindow(options)
     end
     BuildSettingsTab()
 
-    -- ════════════════════════════════════════════════════════════════
-    -- TOGGLE BUTTON (sidebar tab, draggable) - MOBILE FIXED
-    -- ════════════════════════════════════════════════════════════════
+-- ════════════════════════════════════════════════════════════════
+-- TOGGLE BUTTON (sidebar tab, draggable) - FULLY FIXED
+-- ════════════════════════════════════════════════════════════════
 
-    local tbW2 = RS(36,44)
-    local tbH2 = RS(90,100)
+local tbW2 = RS(36, 44)
+local tbH2 = RS(90, 100)
 
-    local TB=Instance.new("Frame"); TB.Name="ToggleButton"
-    TB.Size=UDim2.new(0,tbW2,0,tbH2)
-    -- On mobile: start on right side since left is common for thumbs
+-- Track visibility state
+local guiVisible = true
+local tbDragging = false
+
+-- Position helpers
+local function GetHidePos()
     if _isMobile then
-        TB.Position=UDim2.new(1,-tbW2+4,0.5,-tbH2/2)
+        return UDim2.new(0, _screenSize.X - 4, 0, TB.AbsolutePosition.Y)
     else
-        TB.Position=UDim2.new(0,-4,0.5,-tbH2/2)
+        return UDim2.new(0, -4, 0, TB.AbsolutePosition.Y)
     end
-    TB.BackgroundColor3=Theme.Background; TB.BorderSizePixel=0
-    TB.ZIndex=100; TB.Parent=screenGui
-    Corner(TB,UDim.new(0,12)); Stroke(TB,Theme.Accent,2,0.5)
-
-    local lc=Instance.new("Frame")
-    if _isMobile then
-        lc.Size=UDim2.new(0,12,1,0)
-        lc.Position=UDim2.new(1,-12,0,0)
-    else
-        lc.Size=UDim2.new(0,12,1,0)
-        lc.Position=UDim2.new(0,0,0,0)
-    end
-    lc.BackgroundColor3=Theme.Background; lc.BorderSizePixel=0
-    lc.ZIndex=101; lc.Parent=TB
-
-    local tab2=Instance.new("Frame"); tab2.Name="AccentBar"
-    tab2.AnchorPoint=Vector2.new(0.5,0.5)
-    tab2.Size=UDim2.new(0,3,0,35)
-    if _isMobile then
-        tab2.Position=UDim2.new(0,5,0.5,0)
-    else
-        tab2.Position=UDim2.new(1,-5,0.5,0)
-    end
-    tab2.BackgroundColor3=Theme.Accent; tab2.BorderSizePixel=0
-    tab2.ZIndex=105; tab2.Parent=TB; Corner(tab2,UDim.new(1,0))
-
-    local dc3=Instance.new("Frame"); dc3.Size=UDim2.new(0,12,0,50)
-    dc3.Position=UDim2.new(0.5,-6,0.5,-25); dc3.BackgroundTransparency=1
-    dc3.ZIndex=105; dc3.Parent=TB
-    local dots2={}
-    for i=1,5 do
-        local d=Instance.new("Frame"); d.Size=UDim2.new(0,RS(6,8),0,RS(6,8))
-        d.Position=UDim2.new(0.5,-RS(3,4),0,(i-1)*RS(11,13))
-        d.BackgroundColor3=Theme.TextDim; d.BackgroundTransparency=0.3
-        d.BorderSizePixel=0; d.ZIndex=106; d.Parent=dc3
-        Corner(d,UDim.new(1,0)); table.insert(dots2,d)
-    end
-
-    local tcb2=Instance.new("TextButton"); tcb2.Size=UDim2.new(1,0,1,0)
-    tcb2.BackgroundTransparency=1; tcb2.Text=""; tcb2.ZIndex=110; tcb2.Parent=TB
-
-    local pr=true
-    task.spawn(function()
-        while pr do
-            if not TB or not TB.Parent then break end
-            Tween(tab2,{BackgroundTransparency=0.3},1.2,Enum.EasingStyle.Sine)
-            task.wait(1.2)
-            if not TB or not TB.Parent then break end
-            Tween(tab2,{BackgroundTransparency=0},1.2,Enum.EasingStyle.Sine)
-            task.wait(1.2)
-        end
-    end)
-
-    local tbd,tbds,tbbs,tbhm,tbcd=false,0,0,false,false
-    -- go = true means window is visible
-    local go=true
-
-    local function gty() return TB.Position.Y.Offset end
-    local function gtx() return TB.Position.X.Offset end
-
-    local function sty(y)
-        local sh=screenGui.AbsoluteSize.Y; local bh=TB.AbsoluteSize.Y
-        y=math.clamp(y,-sh/2+bh/2+20,sh/2-bh/2-20)
-        if _isMobile then
-            -- Keep X fixed on mobile (right side)
-            local xOff = go and (screenGui.AbsoluteSize.X - tbW2) or (screenGui.AbsoluteSize.X - tbW2 + 8)
-            TB.Position=UDim2.new(0,xOff,0.5,y)
-        else
-            TB.Position=UDim2.new(0,go and 0 or -4,0.5,y)
-        end
-    end
-
-    local function GetShowPos()
-        if _isMobile then
-            return UDim2.new(0,screenGui.AbsoluteSize.X-tbW2,0.5,gty())
-        else
-            return UDim2.new(0,0,0.5,gty())
-        end
-    end
-    local function GetHidePos()
-        if _isMobile then
-            return UDim2.new(0,screenGui.AbsoluteSize.X-tbW2+8,0.5,gty())
-        else
-            return UDim2.new(0,-4,0.5,gty())
-        end
-    end
-
-    AddConnection(tcb2.MouseButton1Down:Connect(function()
-        if tbcd then return end; tbd=true; tbhm=false
-        tbds=UserInputService:GetMouseLocation().Y; tbbs=gty()
-    end))
-    AddConnection(tcb2.MouseButton1Up:Connect(function()
-        if not tbd then return end; tbd=false
-        if not tbhm and not tbcd then
-            tbcd=true; local cy=gty()
-            if go then
-                go=false
-                Tween(main,{Size=UDim2.new(0,WW,0,0)},0.3)
-                Tween(TB,{Position=GetHidePos()},0.25)
-                Tween(tab2,{Size=UDim2.new(0,3,0,35)},0.25)
-                task.delay(0.3,function()
-                    if main and main.Parent then main.Visible=false end
-                    tbcd=false
-                end)
-            else
-                go=true; main.Visible=true
-                main.Size=UDim2.new(0,WW,0,0)
-                Tween(main,{Size=UDim2.new(0,WW,0,WH)},0.35,Enum.EasingStyle.Back)
-                Tween(TB,{Position=GetShowPos()},0.25)
-                Tween(tab2,{Size=UDim2.new(0,3,0,55)},0.25)
-                task.delay(0.35,function() tbcd=false end)
-            end
-        end
-    end))
-    AddConnection(UserInputService.InputChanged:Connect(function(input)
-        if not tbd then return end
-        if input.UserInputType~=Enum.UserInputType.MouseMovement
-            and input.UserInputType~=Enum.UserInputType.Touch then return end
-        local dy=UserInputService:GetMouseLocation().Y-tbds
-        if math.abs(dy)>RS(5,8) then tbhm=true end
-        if tbhm then sty(tbbs+dy) end
-    end))
-    AddConnection(UserInputService.InputEnded:Connect(function(input)
-        if input.UserInputType==Enum.UserInputType.MouseButton1
-            or input.UserInputType==Enum.UserInputType.Touch then
-            tbd=false
-        end
-    end))
-
-    if not _isMobile then
-        AddConnection(tcb2.MouseEnter:Connect(function()
-            Tween(TB,{BackgroundColor3=Theme.Hover},0.2)
-            Tween(lc,{BackgroundColor3=Theme.Hover},0.2)
-            Tween(TB,{Position=GetShowPos()},0.2)
-            for i2,d in ipairs(dots2) do
-                task.delay(i2*0.04,function()
-                    if d and d.Parent then
-                        Tween(d,{BackgroundColor3=Theme.Accent,BackgroundTransparency=0,
-                            Size=UDim2.new(0,8,0,8),
-                            Position=UDim2.new(0.5,-4,0,(i2-1)*11-1)},0.15)
-                    end
-                end)
-            end
-        end))
-        AddConnection(tcb2.MouseLeave:Connect(function()
-            Tween(TB,{BackgroundColor3=Theme.Background},0.2)
-            Tween(lc,{BackgroundColor3=Theme.Background},0.2)
-            if not go and not tbd then Tween(TB,{Position=GetHidePos()},0.2) end
-            for i2,d in ipairs(dots2) do
-                task.delay(i2*0.04,function()
-                    if d and d.Parent then
-                        Tween(d,{BackgroundColor3=Theme.TextDim,BackgroundTransparency=0.3,
-                            Size=UDim2.new(0,6,0,6),
-                            Position=UDim2.new(0.5,-3,0,(i2-1)*11)},0.15)
-                    end
-                end)
-            end
-        end))
-    end
-
-    local od=Window.Destroy
-    function Window:Destroy() pr=false; od(self) end
-    return Window
 end
+
+local function GetShowPos()
+    if _isMobile then
+        return UDim2.new(0, _screenSize.X - tbW2 + 4, 0, TB.AbsolutePosition.Y)
+    else
+        return UDim2.new(0, 8, 0, TB.AbsolutePosition.Y)
+    end
+end
+
+local TB = Instance.new("Frame")
+TB.Name = "ToggleButton"
+TB.Size = UDim2.new(0, tbW2, 0, tbH2)
+
+-- Initial position (offset-based from the start)
+local initX = _isMobile and (_screenSize.X - tbW2 + 4) or 8
+local initY = math.floor(_screenSize.Y * 0.5 - tbH2 / 2)
+TB.Position = UDim2.new(0, initX, 0, initY)
+
+TB.BackgroundColor3 = Theme.Background
+TB.BorderSizePixel = 0
+TB.ZIndex = 100
+TB.Parent = screenGui
+Corner(TB, UDim.new(0, 12))
+Stroke(TB, Theme.Accent, 2, 0.5)
+
+-- Flat cover so corner only shows on one side
+local lc = Instance.new("Frame")
+if _isMobile then
+    lc.Size = UDim2.new(0, 12, 1, 0)
+    lc.Position = UDim2.new(1, -12, 0, 0)
+else
+    lc.Size = UDim2.new(0, 12, 1, 0)
+    lc.Position = UDim2.new(0, 0, 0, 0)
+end
+lc.BackgroundColor3 = Theme.Background
+lc.BorderSizePixel = 0
+lc.ZIndex = 101
+lc.Parent = TB
+
+-- Accent bar
+local tab2 = Instance.new("Frame")
+tab2.Name = "AccentBar"
+tab2.AnchorPoint = Vector2.new(0.5, 0.5)
+tab2.Size = UDim2.new(0, 3, 0, 35)
+if _isMobile then
+    tab2.Position = UDim2.new(0, 5, 0.5, 0)
+else
+    tab2.Position = UDim2.new(1, -5, 0.5, 0)
+end
+tab2.BackgroundColor3 = Theme.Accent
+tab2.BorderSizePixel = 0
+tab2.ZIndex = 105
+tab2.Parent = TB
+Corner(tab2, UDim.new(1, 0))
+
+-- Dot grid
+local dc3 = Instance.new("Frame")
+dc3.Size = UDim2.new(0, 12, 0, 50)
+dc3.Position = UDim2.new(0.5, -6, 0.5, -25)
+dc3.BackgroundTransparency = 1
+dc3.ZIndex = 105
+dc3.Parent = TB
+
+local dots2 = {}
+for i = 1, 5 do
+    local d = Instance.new("Frame")
+    d.Size = UDim2.new(0, RS(6, 8), 0, RS(6, 8))
+    d.Position = UDim2.new(0.5, -RS(3, 4), 0, (i - 1) * RS(11, 13))
+    d.BackgroundColor3 = Theme.TextDim
+    d.BackgroundTransparency = 0.3
+    d.BorderSizePixel = 0
+    d.ZIndex = 106
+    d.Parent = dc3
+    Corner(d, UDim.new(1, 0))
+    table.insert(dots2, d)
+end
+
+-- Click button
+local tcb2 = Instance.new("TextButton")
+tcb2.Size = UDim2.new(1, 0, 1, 0)
+tcb2.BackgroundTransparency = 1
+tcb2.Text = ""
+tcb2.ZIndex = 110
+tcb2.Parent = TB
+
+-- Pulse animation
+local pr = true
+task.spawn(function()
+    while pr do
+        if not TB or not TB.Parent then break end
+        Tween(tab2, {BackgroundTransparency = 0.3}, 1.2, Enum.EasingStyle.Sine)
+        task.wait(1.2)
+        if not TB or not TB.Parent then break end
+        Tween(tab2, {BackgroundTransparency = 0}, 1.2, Enum.EasingStyle.Sine)
+        task.wait(1.2)
+    end
+end)
+
+-- Drag logic (fully offset-based)
+local tbDragActive = false
+local tbMoved = false
+local tbClickDebounce = false
+local tbDragStartY = 0
+local tbStartOffsetX = 0
+local tbStartOffsetY = 0
+
+AddConnection(tcb2.InputBegan:Connect(function(input)
+    if input.UserInputType ~= Enum.UserInputType.MouseButton1
+    and input.UserInputType ~= Enum.UserInputType.Touch then return end
+    if tbClickDebounce then return end
+
+    tbDragActive = true
+    tbMoved = false
+    tbDragStartY = input.Position.Y
+    -- Capture current absolute offsets
+    tbStartOffsetX = TB.AbsolutePosition.X
+    tbStartOffsetY = TB.AbsolutePosition.Y
+end))
+
+AddConnection(UserInputService.InputChanged:Connect(function(input)
+    if not tbDragActive then return end
+    if input.UserInputType ~= Enum.UserInputType.MouseMovement
+    and input.UserInputType ~= Enum.UserInputType.Touch then return end
+
+    local dy = input.Position.Y - tbDragStartY
+
+    if math.abs(dy) > 6 then
+        tbMoved = true
+    end
+
+    if tbMoved then
+        local screenY = workspace.CurrentCamera.ViewportSize.Y
+        local newY = math.clamp(tbStartOffsetY + dy, 0, screenY - TB.AbsoluteSize.Y)
+        -- Keep X fixed, only move Y
+        TB.Position = UDim2.new(0, tbStartOffsetX, 0, newY)
+    end
+end))
+
+AddConnection(UserInputService.InputEnded:Connect(function(input)
+    if input.UserInputType ~= Enum.UserInputType.MouseButton1
+    and input.UserInputType ~= Enum.UserInputType.Touch then return end
+    if not tbDragActive then return end
+
+    tbDragActive = false
+
+    if not tbMoved and not tbClickDebounce then
+        tbClickDebounce = true
+
+        if guiVisible then
+            -- Hide GUI
+            guiVisible = false
+            Tween(main, {Size = UDim2.new(0, WW, 0, 0)}, 0.3)
+            Tween(tab2, {Size = UDim2.new(0, 3, 0, 35)}, 0.25)
+            task.delay(0.3, function()
+                if main and main.Parent then
+                    main.Visible = false
+                end
+                tbClickDebounce = false
+            end)
+        else
+            -- Show GUI
+            guiVisible = true
+            main.Visible = true
+            main.Size = UDim2.new(0, WW, 0, 0)
+            Tween(main, {Size = UDim2.new(0, WW, 0, WH)}, 0.35, Enum.EasingStyle.Back)
+            Tween(tab2, {Size = UDim2.new(0, 3, 0, 55)}, 0.25)
+            task.delay(0.35, function()
+                tbClickDebounce = false
+            end)
+        end
+    end
+end))
+
+-- Hover effects (PC only)
+if not _isMobile then
+    AddConnection(tcb2.MouseEnter:Connect(function()
+        Tween(TB, {BackgroundColor3 = Theme.Hover}, 0.2)
+        Tween(lc, {BackgroundColor3 = Theme.Hover}, 0.2)
+        for i2, d in ipairs(dots2) do
+            task.delay(i2 * 0.04, function()
+                if d and d.Parent then
+                    Tween(d, {
+                        BackgroundColor3 = Theme.Accent,
+                        BackgroundTransparency = 0,
+                        Size = UDim2.new(0, 8, 0, 8),
+                        Position = UDim2.new(0.5, -4, 0, (i2 - 1) * 11 - 1)
+                    }, 0.15)
+                end
+            end)
+        end
+    end))
+
+    AddConnection(tcb2.MouseLeave:Connect(function()
+        Tween(TB, {BackgroundColor3 = Theme.Background}, 0.2)
+        Tween(lc, {BackgroundColor3 = Theme.Background}, 0.2)
+        for i2, d in ipairs(dots2) do
+            task.delay(i2 * 0.04, function()
+                if d and d.Parent then
+                    Tween(d, {
+                        BackgroundColor3 = Theme.TextDim,
+                        BackgroundTransparency = 0.3,
+                        Size = UDim2.new(0, 6, 0, 6),
+                        Position = UDim2.new(0.5, -3, 0, (i2 - 1) * 11)
+                    }, 0.15)
+                end
+            end)
+        end
+    end))
+end
+
+local od = Window.Destroy
+function Window:Destroy()
+    pr = false
+    od(self)
+end
+
+return Window
+end -- end CreateWindow
 
 return GluttonyUI
