@@ -2797,26 +2797,6 @@ TB.ZIndex = 100
 TB.Parent = screenGui
 Corner(TB, UDim.new(0, 12))
 
--- Simple accent border on the visible edge only
-local tbEdge = Instance.new("Frame")
-tbEdge.Name = "Edge"
-tbEdge.BorderSizePixel = 0
-tbEdge.ZIndex = 103
-tbEdge.Parent = TB
-
-if _isMobile then
-    -- Edge on left side
-    tbEdge.Size = UDim2.new(0, 3, 1, -24)
-    tbEdge.Position = UDim2.new(0, 0, 0, 12)
-    tbEdge.BackgroundColor3 = Theme.Accent
-else
-    -- Edge on right side
-    tbEdge.Size = UDim2.new(0, 3, 1, -24)
-    tbEdge.Position = UDim2.new(1, -3, 0, 12)
-    tbEdge.BackgroundColor3 = Theme.Accent
-end
-Corner(tbEdge, UDim.new(1, 0))
-
 -- Flat cover so corner only shows on one side
 local lc = Instance.new("Frame")
 if _isMobile then
