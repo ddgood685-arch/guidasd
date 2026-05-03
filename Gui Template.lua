@@ -2798,13 +2798,14 @@ TB.Parent = screenGui
 Corner(TB, UDim.new(0, 12))
 Stroke(TB, Theme.Accent, 2, 0.5)
 
+-- Flat cover so corner only shows on one side
 local lc = Instance.new("Frame")
 if _isMobile then
-    lc.Size = UDim2.new(0, 16, 1, 4)
-    lc.Position = UDim2.new(1, -14, 0, -2)
+    lc.Size = UDim2.new(0, 12, 1, 0)
+    lc.Position = UDim2.new(1, -12, 0, 0)
 else
-    lc.Size = UDim2.new(0, 16, 1, 4)
-    lc.Position = UDim2.new(0, -2, 0, -2)
+    lc.Size = UDim2.new(0, 12, 1, 0)
+    lc.Position = UDim2.new(0, 0, 0, 0)
 end
 lc.BackgroundColor3 = Theme.Background
 lc.BorderSizePixel = 0
