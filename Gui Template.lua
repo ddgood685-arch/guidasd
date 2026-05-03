@@ -437,9 +437,13 @@ local function CreateTabIcon(parent, iconType, sbWidth, iconColor)
         coin="$",trash="✕",["arrow-up"]="▲",fire="◈",list="☰",
         refresh="⟳",target="◎",crown="♛",skull="☠"
     }
+    local iconSizes={
+        ["arrow-up"]=RS(22,20),
+    }
     local l=Instance.new("TextLabel"); l.Size=UDim2.new(1,0,1,0)
     l.BackgroundTransparency=1; l.Text=m[iconType] or "●"
-    l.TextColor3=iconColor or Theme.Accent; l.TextSize=RS(16,14); l.Font=Enum.Font.GothamBold
+    l.TextColor3=iconColor or Theme.Accent; l.TextSize=iconSizes[iconType] or RS(16,14)
+    l.Font=Enum.Font.GothamBold
     l.ZIndex=10; l.Parent=c
 end
 
