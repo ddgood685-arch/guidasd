@@ -589,16 +589,26 @@ function GluttonyUI:CreateWindow(options)
         end))
     end
     AddConnection(minBtn.MouseButton1Click:Connect(function()
-        minimized = not minimized
-        if minimized then
-            Tween(main,{Size=UDim2.new(0,WW,0,0)},0.3)
+        -- Sync minimized with actual guiVisible state first
+        minimized = not guiVisible  -- if GUI is hidden, treat as already minimized
+        
+        if not minimized then
+            -- Currently visible — hide it
+            minimized = true
+            guiVisible = false
+            Tween(main, {Size = UDim2.new(0, WW, 0, 0)}, 0.3)
             task.delay(0.3, function()
-                if main and main.Parent then main.Visible=false end
+                if main and main.Parent then
+                    main.Visible = false
+                end
             end)
         else
-            main.Visible=true
-            main.Size=UDim2.new(0,WW,0,0)
-            Tween(main,{Size=UDim2.new(0,WW,0,WH)},0.35,Enum.EasingStyle.Back)
+            -- Currently hidden — show it
+            minimized = false
+            guiVisible = true
+            main.Visible = true
+            main.Size = UDim2.new(0, WW, 0, 0)
+            Tween(main, {Size = UDim2.new(0, WW, 0, WH)}, 0.35, Enum.EasingStyle.Back)
         end
     end))
 
@@ -2939,6 +2949,7 @@ AddConnection(UserInputService.InputEnded:Connect(function(input)
         if guiVisible then
             -- Hide GUI
             guiVisible = false
+            minimized = true  -- ADD THIS
             Tween(main, {Size = UDim2.new(0, WW, 0, 0)}, 0.3)
             Tween(tab2, {Size = UDim2.new(0, 3, 0, 35)}, 0.25)
             task.delay(0.3, function()
@@ -2950,6 +2961,7 @@ AddConnection(UserInputService.InputEnded:Connect(function(input)
         else
             -- Show GUI
             guiVisible = true
+            minimized = false  -- ADD THIS
             main.Visible = true
             main.Size = UDim2.new(0, WW, 0, 0)
             Tween(main, {Size = UDim2.new(0, WW, 0, WH)}, 0.35, Enum.EasingStyle.Back)
