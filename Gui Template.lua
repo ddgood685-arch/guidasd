@@ -435,7 +435,7 @@ local function CreateTabIcon(parent, iconType, sbWidth, iconColor)
         circle="●",square="■",diamond="◆",bars="≡",triangle="▶",
         ["dot-grid"]="⊞",settings="⚙",bolt="⚡",shield="⛨",star="★",
         coin="$",trash="✕",["arrow-up"]="▲",fire="◈",list="☰",
-        refresh="↻",target="◎",crown="♛",skull="☠"
+        refresh="⟳",target="◎",crown="♛",skull="☠"
     }
     local l=Instance.new("TextLabel"); l.Size=UDim2.new(1,0,1,0)
     l.BackgroundTransparency=1; l.Text=m[iconType] or "●"
