@@ -425,7 +425,7 @@ local function CreateLogo(parent, titleH)
 end
 
 -- TAB ICONS
-local function CreateTabIcon(parent, iconType, sbWidth)
+local function CreateTabIcon(parent, iconType, sbWidth, iconColor)
     local sz = RS(20, 18)
     local xOff = RS(18, 12)
     local c=Instance.new("Frame"); c.Size=UDim2.new(0,sz,0,sz)
@@ -433,11 +433,13 @@ local function CreateTabIcon(parent, iconType, sbWidth)
     c.BackgroundTransparency=1; c.ZIndex=9; c.Parent=parent
     local m={
         circle="●",square="■",diamond="◆",bars="≡",triangle="▶",
-        ["dot-grid"]="⊞",settings="⚙",bolt="⚡",shield="⛨",star="★"
+        ["dot-grid"]="⊞",settings="⚙",bolt="⚡",shield="⛨",star="★",
+        coin="$",trash="✕",["arrow-up"]="▲",fire="◈",list="☰",
+        refresh="↻",target="◎",crown="♛",skull="☠"
     }
     local l=Instance.new("TextLabel"); l.Size=UDim2.new(1,0,1,0)
     l.BackgroundTransparency=1; l.Text=m[iconType] or "●"
-    l.TextColor3=Theme.Accent; l.TextSize=RS(16,14); l.Font=Enum.Font.GothamBold
+    l.TextColor3=iconColor or Theme.Accent; l.TextSize=RS(16,14); l.Font=Enum.Font.GothamBold
     l.ZIndex=10; l.Parent=c
 end
 
@@ -721,7 +723,7 @@ function GluttonyUI:CreateWindow(options)
     end
 
     -- ADD TAB
-    function Window:AddTab(name, iconType)
+    function Window:AddTab(name, iconType, iconColor)
         Window._tabCount=Window._tabCount+1
         local isFirst=Window._tabCount==1
         iconType=iconType or IconTypes[((Window._tabCount-1)%#IconTypes)+1]
@@ -742,7 +744,8 @@ function GluttonyUI:CreateWindow(options)
         indicator.BorderSizePixel=0; indicator.ZIndex=8; indicator.Parent=tabBtn
         Corner(indicator,UDim.new(1,0))
 
-        CreateTabIcon(tabBtn, iconType, SW)
+        CreateTabIcon(tabBtn, iconType, SW, iconColor)
+
 
         local iconW = RS(44, 38)
         local tabLabel=Instance.new("TextLabel"); tabLabel.Name="Label"
