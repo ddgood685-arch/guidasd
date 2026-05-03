@@ -577,7 +577,7 @@ function GluttonyUI:CreateWindow(options)
     minLine.BorderSizePixel=0; minLine.ZIndex=13; minLine.Parent=minBtn
     Corner(minLine,UDim.new(1,0))
 
-    local minimized=false
+    local minimized = false
     if not _isMobile then
         AddConnection(minBtn.MouseEnter:Connect(function()
             Tween(minBtn,{BackgroundColor3=Color3.fromRGB(60,60,75)},0.15)
@@ -590,7 +590,6 @@ function GluttonyUI:CreateWindow(options)
     end
     -- SHARED VISIBILITY STATE (add this right after Window={} is created)
     local guiVisible = true  -- MOVE this up here, remove it from the TB section below
-    minimized = false
 
     AddConnection(minBtn.MouseButton1Click:Connect(function()
         if guiVisible then
@@ -2797,7 +2796,26 @@ TB.BorderSizePixel = 0
 TB.ZIndex = 100
 TB.Parent = screenGui
 Corner(TB, UDim.new(0, 12))
-Stroke(TB, Theme.Accent, 2, 0.5)
+
+-- Simple accent border on the visible edge only
+local tbEdge = Instance.new("Frame")
+tbEdge.Name = "Edge"
+tbEdge.BorderSizePixel = 0
+tbEdge.ZIndex = 103
+tbEdge.Parent = TB
+
+if _isMobile then
+    -- Edge on left side
+    tbEdge.Size = UDim2.new(0, 3, 1, -24)
+    tbEdge.Position = UDim2.new(0, 0, 0, 12)
+    tbEdge.BackgroundColor3 = Theme.Accent
+else
+    -- Edge on right side
+    tbEdge.Size = UDim2.new(0, 3, 1, -24)
+    tbEdge.Position = UDim2.new(1, -3, 0, 12)
+    tbEdge.BackgroundColor3 = Theme.Accent
+end
+Corner(tbEdge, UDim.new(1, 0))
 
 -- Flat cover so corner only shows on one side
 local lc = Instance.new("Frame")
