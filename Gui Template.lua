@@ -2782,25 +2782,7 @@ local tbW2 = RS(36, 44)
 local tbH2 = RS(90, 100)
 
 -- Track visibility state
-local guiVisible = true
 local tbDragging = false
-
--- Position helpers
-local function GetHidePos()
-    if _isMobile then
-        return UDim2.new(0, _screenSize.X - 4, 0, TB.AbsolutePosition.Y)
-    else
-        return UDim2.new(0, -4, 0, TB.AbsolutePosition.Y)
-    end
-end
-
-local function GetShowPos()
-    if _isMobile then
-        return UDim2.new(0, _screenSize.X - tbW2 + 4, 0, TB.AbsolutePosition.Y)
-    else
-        return UDim2.new(0, 8, 0, TB.AbsolutePosition.Y)
-    end
-end
 
 local TB = Instance.new("Frame")
 TB.Name = "ToggleButton"
