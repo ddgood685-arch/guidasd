@@ -588,12 +588,21 @@ function GluttonyUI:CreateWindow(options)
             Tween(minLine,{BackgroundColor3=Theme.TextDim},0.15)
         end))
     end
+    -- SHARED VISIBILITY STATE (add this right after Window={} is created)
+    local guiVisible = true  -- MOVE this up here, remove it from the TB section below
+
+    -- MINIMIZE BUTTON - FIXED
+    local minimized = false
     AddConnection(minBtn.MouseButton1Click:Connect(function()
-        -- Sync minimized with actual guiVisible state first
-        minimized = not guiVisible  -- if GUI is hidden, treat as already minimized
-        
-        if not minimized then
-            -- Currently visible — hide it
+        if minimized then
+            -- Show
+            minimized = false
+            guiVisible = true
+            main.Visible = true
+            main.Size = UDim2.new(0, WW, 0, 0)
+            Tween(main, {Size = UDim2.new(0, WW, 0, WH)}, 0.35, Enum.EasingStyle.Back)
+        else
+            -- Hide
             minimized = true
             guiVisible = false
             Tween(main, {Size = UDim2.new(0, WW, 0, 0)}, 0.3)
@@ -602,13 +611,6 @@ function GluttonyUI:CreateWindow(options)
                     main.Visible = false
                 end
             end)
-        else
-            -- Currently hidden — show it
-            minimized = false
-            guiVisible = true
-            main.Visible = true
-            main.Size = UDim2.new(0, WW, 0, 0)
-            Tween(main, {Size = UDim2.new(0, WW, 0, WH)}, 0.35, Enum.EasingStyle.Back)
         end
     end))
 
@@ -638,17 +640,10 @@ function GluttonyUI:CreateWindow(options)
 
         -- In the template, find InputEnded for the toggle button and change:
         AddConnection(UserInputService.InputEnded:Connect(function(input)
-            if input.UserInputType ~= Enum.UserInputType.MouseButton1
-            and input.UserInputType ~= Enum.UserInputType.Touch then return end
-            if not tbDragActive then return end
-
-            tbDragActive = false
-            local wasMoved = tbMoved
-            tbMoved = false  -- reset BEFORE the click logic
-
-            if not wasMoved and not tbClickDebounce then
-                -- click logic...
-            end
+            if input.UserInputType ~= Enum.UserInputType.MouseButton1 then return end
+            dragging = false
+            dragStartInput = nil
+            startPos = nil
         end))
     end
 
@@ -2942,14 +2937,16 @@ AddConnection(UserInputService.InputEnded:Connect(function(input)
     if not tbDragActive then return end
 
     tbDragActive = false
+    local wasMoved = tbMoved
+    tbMoved = false
 
-    if not tbMoved and not tbClickDebounce then
+    if not wasMoved and not tbClickDebounce then
         tbClickDebounce = true
 
         if guiVisible then
-            -- Hide GUI
+            -- Hide
             guiVisible = false
-            minimized = true  -- ADD THIS
+            minimized = true
             Tween(main, {Size = UDim2.new(0, WW, 0, 0)}, 0.3)
             Tween(tab2, {Size = UDim2.new(0, 3, 0, 35)}, 0.25)
             task.delay(0.3, function()
@@ -2959,9 +2956,9 @@ AddConnection(UserInputService.InputEnded:Connect(function(input)
                 tbClickDebounce = false
             end)
         else
-            -- Show GUI
+            -- Show
             guiVisible = true
-            minimized = false  -- ADD THIS
+            minimized = false
             main.Visible = true
             main.Size = UDim2.new(0, WW, 0, 0)
             Tween(main, {Size = UDim2.new(0, WW, 0, WH)}, 0.35, Enum.EasingStyle.Back)
@@ -2970,6 +2967,8 @@ AddConnection(UserInputService.InputEnded:Connect(function(input)
                 tbClickDebounce = false
             end)
         end
+    else
+        tbMoved = false
     end
 end))
 
