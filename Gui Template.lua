@@ -2796,7 +2796,6 @@ TB.BorderSizePixel = 0
 TB.ZIndex = 100
 TB.Parent = screenGui
 Corner(TB, UDim.new(0, 12))
-Stroke(TB, Theme.Accent, 2, 0.5)
 
 -- Flat cover so corner only shows on one side
 local lc = Instance.new("Frame")
