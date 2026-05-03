@@ -590,27 +590,26 @@ function GluttonyUI:CreateWindow(options)
     end
     -- SHARED VISIBILITY STATE (add this right after Window={} is created)
     local guiVisible = true  -- MOVE this up here, remove it from the TB section below
+    minimized = false
 
-    -- MINIMIZE BUTTON - FIXED
-    local minimized = false
     AddConnection(minBtn.MouseButton1Click:Connect(function()
-        if minimized then
-            -- Show
-            minimized = false
-            guiVisible = true
-            main.Visible = true
-            main.Size = UDim2.new(0, WW, 0, 0)
-            Tween(main, {Size = UDim2.new(0, WW, 0, WH)}, 0.35, Enum.EasingStyle.Back)
-        else
+        if guiVisible then
             -- Hide
-            minimized = true
             guiVisible = false
+            minimized = true
             Tween(main, {Size = UDim2.new(0, WW, 0, 0)}, 0.3)
             task.delay(0.3, function()
                 if main and main.Parent then
                     main.Visible = false
                 end
             end)
+        else
+            -- Show
+            guiVisible = true
+            minimized = false
+            main.Visible = true
+            main.Size = UDim2.new(0, WW, 0, 0)
+            Tween(main, {Size = UDim2.new(0, WW, 0, WH)}, 0.35, Enum.EasingStyle.Back)
         end
     end))
 
