@@ -569,6 +569,7 @@ function GluttonyUI:CreateWindow(options)
     minBtn.BackgroundColor3=Color3.fromRGB(45,45,55)
     minBtn.Text=""; minBtn.BorderSizePixel=0
     minBtn.AutoButtonColor=false; minBtn.ZIndex=12; minBtn.Parent=titleBar
+    minBtn.Active = true
     Corner(minBtn,Theme.CornerRadius)
 
     local minLine=Instance.new("Frame"); minLine.Size=UDim2.new(0,12,0,2)
@@ -625,11 +626,19 @@ function GluttonyUI:CreateWindow(options)
                 startPos.Y.Scale, startPos.Y.Offset + d.Y)
         end))
 
+        -- In the template, find InputEnded for the toggle button and change:
         AddConnection(UserInputService.InputEnded:Connect(function(input)
-            if input.UserInputType ~= Enum.UserInputType.MouseButton1 then return end
-            dragging       = false
-            dragStartInput = nil
-            startPos       = nil
+            if input.UserInputType ~= Enum.UserInputType.MouseButton1
+            and input.UserInputType ~= Enum.UserInputType.Touch then return end
+            if not tbDragActive then return end
+
+            tbDragActive = false
+            local wasMoved = tbMoved
+            tbMoved = false  -- reset BEFORE the click logic
+
+            if not wasMoved and not tbClickDebounce then
+                -- click logic...
+            end
         end))
     end
 
