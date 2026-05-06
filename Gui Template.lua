@@ -2444,6 +2444,62 @@ function GluttonyUI:CreateWindow(options)
                 sf.CanvasSize=UDim2.new(0,0,0,sfl.AbsoluteContentSize.Y+16)
             end))
             sf.CanvasSize=UDim2.new(0,0,0,sfl.AbsoluteContentSize.Y+16)
+
+            -- ════════════════════════════════════════════════════════
+            -- MOBILE SCROLL PASSTHROUGH FIX
+            -- When inner list is at top and user swipes down,
+            -- or at bottom and user swipes up, pass scroll to parent page
+            -- ════════════════════════════════════════════════════════
+            if _isMobile then
+                local touchStartY = 0
+                local touchStartCanvasY = 0
+
+                AddConnection(sf.InputBegan:Connect(function(input)
+                    if input.UserInputType ~= Enum.UserInputType.Touch then return end
+                    touchStartY = input.Position.Y
+                    touchStartCanvasY = sf.CanvasPosition.Y
+
+                    local maxScroll = math.max(0, sf.CanvasSize.Y.Offset - sf.AbsoluteSize.Y)
+                    local atTop    = touchStartCanvasY <= 1
+                    local atBottom = touchStartCanvasY >= (maxScroll - 1)
+
+                    -- If already at a boundary, disable inner scroll immediately
+                    -- so the parent page can catch the touch from the start
+                    if atTop or atBottom then
+                        sf.ScrollingEnabled = false
+                    else
+                        sf.ScrollingEnabled = true
+                    end
+                end))
+
+                AddConnection(sf.InputChanged:Connect(function(input)
+                    if input.UserInputType ~= Enum.UserInputType.Touch then return end
+
+                    local dy = input.Position.Y - touchStartY
+                    local maxScroll = math.max(0, sf.CanvasSize.Y.Offset - sf.AbsoluteSize.Y)
+                    local atTop    = sf.CanvasPosition.Y <= 1
+                    local atBottom = sf.CanvasPosition.Y >= (maxScroll - 1)
+
+                    -- Swiping down (positive dy) while at top → escape to parent
+                    -- Swiping up  (negative dy) while at bottom → escape to parent
+                    if (atTop and dy > 0) or (atBottom and dy < 0) then
+                        sf.ScrollingEnabled = false
+                    elseif not atTop and not atBottom then
+                        sf.ScrollingEnabled = true
+                    end
+                end))
+
+                AddConnection(sf.InputEnded:Connect(function(input)
+                    if input.UserInputType ~= Enum.UserInputType.Touch then return end
+                    -- Re-enable after a short delay so next touch starts fresh
+                    task.delay(0.12, function()
+                        if sf and sf.Parent then
+                            sf.ScrollingEnabled = true
+                        end
+                    end)
+                end))
+            end
+
             task.defer(function() SortList() end)
 
             return {
@@ -2456,7 +2512,7 @@ function GluttonyUI:CreateWindow(options)
                             local isOn2=selected[item.Name]==true
                             rd.ToggleBg.BackgroundColor3=isOn2 and Theme.Accent or Theme.ProtectedOff
                             rd.ToggleCircle.Position=isOn2
-                                and UDim2.new(1,-(tcSz+2),0.5,-tcSz/2)   -- note: tcSz is per-item, use rd approach
+                                and UDim2.new(1,-(tcSz+2),0.5,-tcSz/2)
                                 or UDim2.new(0,2,0.5,-RS(9,11))
                         end
                     end; UC(); SortList()
