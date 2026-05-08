@@ -2784,7 +2784,6 @@ function GluttonyUI:CreateWindow(options)
             local testColor   = opts.TestColor   or WebhookSystem._config.Color
             local testFields  = opts.TestFields  or {}
 
-            -- Load saved URL
             local savedUrl = StateStore[configKey] or ""
             WebhookSystem:SetURL(savedUrl)
 
@@ -2842,7 +2841,6 @@ function GluttonyUI:CreateWindow(options)
             urlInput.ZIndex = 9
             urlInput.Parent = urlInputBg
 
-            -- Status dot
             local statusDot = Instance.new("Frame")
             statusDot.Size = UDim2.new(0, 10, 0, 10)
             statusDot.Position = UDim2.new(1, -(RS(14, 12) + 6), 0.5, -5)
@@ -3002,7 +3000,6 @@ function GluttonyUI:CreateWindow(options)
 
             SetupHover(btnRow, RowColor(btnRowOrder), btnAb)
 
-            -- Return controls
             return {
                 GetURL = function()
                     return urlInput.Text
@@ -3021,6 +3018,9 @@ function GluttonyUI:CreateWindow(options)
                 end,
             }
         end
+
+        return Tab
+    end -- end Window:AddTab
 
     -- WINDOW METHODS
     function Window:Destroy()
