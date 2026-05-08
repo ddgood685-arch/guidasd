@@ -2779,7 +2779,7 @@ function GluttonyUI:CreateWindow(options)
             local labelText  = opts.Label       or "Webhook URL"
             local placeholder= opts.Placeholder or "https://discord.com/api/webhooks/..."
             local configKey  = opts.ConfigKey   or "_webhook_url"
-            local onSave     = opts.OnSave      -- optional callback(url)
+            local onSave     = opts.OnSave
             local testTitle  = opts.TestTitle   or "🔗 Webhook Test"
             local testDesc   = opts.TestDescription or "This is a test message from **Gluttony Core**.\nWebhook is working correctly! ✅"
             local testColor  = opts.TestColor   or WebhookSystem._config.Color
@@ -2789,59 +2789,8 @@ function GluttonyUI:CreateWindow(options)
             local savedUrl = StateStore[configKey] or ""
             WebhookSystem:SetURL(savedUrl)
 
-            -- Section header
-            local secLabel = Instance.new("TextLabel")
-            secLabel.Size = UDim2.new(1,0,0,28)
-            secLabel.BackgroundTransparency = 1
-            secLabel.Text = "🔗 " .. labelText
-            secLabel.TextColor3 = Theme.Accent
-            secLabel.TextSize = RS(15,16)
-            secLabel.Font = Theme.Font
-            secLabel.TextXAlignment = Enum.TextXAlignment.Left
-            secLabel.LayoutOrder = order
-            secLabel.ZIndex = 7
-            secLabel.Parent = page
-
-            -- Info hint
-            local hintOrder = NextOrder()
-            local hintH = RS(54,62)
-            local hintFrame = Instance.new("Frame")
-            hintFrame.Size = UDim2.new(1,0,0,hintH)
-            hintFrame.BackgroundColor3 = Color3.fromRGB(28,32,50)
-            hintFrame.BorderSizePixel = 0
-            hintFrame.LayoutOrder = hintOrder
-            hintFrame.ZIndex = 6
-            hintFrame.Parent = page
-            Corner(hintFrame, Theme.CornerRadius)
-            Stroke(hintFrame, Color3.fromRGB(88,101,242), 1, 0.5)
-
-            local discordBar = Instance.new("Frame")
-            discordBar.Size = UDim2.new(0,4,1,-16)
-            discordBar.Position = UDim2.new(0,8,0,8)
-            discordBar.BackgroundColor3 = Color3.fromRGB(88,101,242)
-            discordBar.BorderSizePixel = 0; discordBar.ZIndex = 7; discordBar.Parent = hintFrame
-            Corner(discordBar, UDim.new(1,0))
-
-            local discordIcon = Instance.new("TextLabel")
-            discordIcon.Size = UDim2.new(0,28,0,28)
-            discordIcon.Position = UDim2.new(0,18,0.5,-14)
-            discordIcon.BackgroundTransparency = 1
-            discordIcon.Text = "🔗"; discordIcon.TextSize = 18
-            discordIcon.ZIndex = 8; discordIcon.Parent = hintFrame
-
-            local hintText = Instance.new("TextLabel")
-            hintText.Size = UDim2.new(1,-58,1,-16)
-            hintText.Position = UDim2.new(0,50,0,8)
-            hintText.BackgroundTransparency = 1
-            hintText.Text = "Paste your Discord webhook URL below. Embeds will include player info, game, and server."
-            hintText.TextColor3 = Color3.fromRGB(180,190,255)
-            hintText.TextSize = RS(12,13)
-            hintText.Font = Theme.FontLight
-            hintText.TextXAlignment = Enum.TextXAlignment.Left
-            hintText.TextWrapped = true; hintText.ZIndex = 7; hintText.Parent = hintFrame
-
             -- URL Input row
-            local urlOrder = NextOrder()
+            local urlOrder = order
             local urlRow = Instance.new("Frame")
             urlRow.Size = UDim2.new(1,0,0,RH)
             urlRow.BackgroundColor3 = RowColor(urlOrder)
@@ -2853,16 +2802,16 @@ function GluttonyUI:CreateWindow(options)
             local urlAb = HoverAccent(urlRow)
 
             local urlLbl = Instance.new("TextLabel")
-            urlLbl.Size = UDim2.new(0,RS(65,55),1,0)
+            urlLbl.Size = UDim2.new(0,RS(90,75),1,0)
             urlLbl.Position = UDim2.new(0,18,0,0)
             urlLbl.BackgroundTransparency = 1
-            urlLbl.Text = "URL"
+            urlLbl.Text = "🔗 " .. labelText
             urlLbl.TextColor3 = Theme.Text; urlLbl.TextSize = Theme.FontSize
             urlLbl.Font = Theme.FontLight
             urlLbl.TextXAlignment = Enum.TextXAlignment.Left
             urlLbl.ZIndex = 7; urlLbl.Parent = urlRow
 
-            local urlInputW = RS(340,260)
+            local urlInputW = RS(310,240)
             local urlInputBg = Instance.new("Frame")
             urlInputBg.Size = UDim2.new(0,urlInputW,0,RS(30,34))
             urlInputBg.Position = UDim2.new(1,-(urlInputW+RS(14,12)),0.5,-RS(15,17))
@@ -2887,7 +2836,6 @@ function GluttonyUI:CreateWindow(options)
             urlInput.TextTruncate = Enum.TextTruncate.AtEnd
             urlInput.ZIndex = 9; urlInput.Parent = urlInputBg
 
-            -- Status dot (positioned at the right end of the input box)
             local statusDot = Instance.new("Frame")
             statusDot.Size = UDim2.new(0,10,0,10)
             statusDot.Position = UDim2.new(1,-(RS(14,12)+6),0.5,-5)
@@ -2911,7 +2859,7 @@ function GluttonyUI:CreateWindow(options)
             end))
             SetupHover(urlRow, RowColor(urlOrder), urlAb)
 
-            -- Save & Test button row
+            -- Test button row
             local btnRowOrder = NextOrder()
             local btnRow = Instance.new("Frame")
             btnRow.Size = UDim2.new(1,0,0,RH)
@@ -2933,7 +2881,6 @@ function GluttonyUI:CreateWindow(options)
             btnLbl.TextXAlignment = Enum.TextXAlignment.Left
             btnLbl.ZIndex = 7; btnLbl.Parent = btnRow
 
-            -- Test button (Discord blue)
             local testBtnW = RS(100,90)
             local testBtnFrame = Instance.new("Frame")
             testBtnFrame.Size = UDim2.new(0,testBtnW,0,RS(32,36))
@@ -2991,12 +2938,10 @@ function GluttonyUI:CreateWindow(options)
                     return
                 end
                 testBusy = true
-                -- Save URL before test
                 WebhookSystem:SetURL(url)
                 StateStore[configKey] = url
                 ConfigManager:Set(configKey, url)
 
-                -- Animate button
                 testBtn.Text = "Sending..."
                 Tween(testBtn,{BackgroundColor3=Color3.fromRGB(100,100,120)},0.15)
                 Tween(testBtn,{Size=UDim2.new(1,-6,1,-4)},0.06)
@@ -3035,7 +2980,6 @@ function GluttonyUI:CreateWindow(options)
             end))
             SetupHover(btnRow, RowColor(btnRowOrder), btnAb)
 
-            -- Return controls
             return {
                 GetURL = function() return urlInput.Text end,
                 SetURL = function(_, url)
