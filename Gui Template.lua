@@ -1,7 +1,7 @@
 --[[
 ═══════════════════════════════════════════════════════════════════════════
-   GLUTTONY UI LIBRARY v2.2
-   Fixed: Mobile Support, Screen Detection, Responsive Sizing
+   GLUTTONY UI LIBRARY v2.3
+   Added: Discord Webhook System (Rich Embeds, Customizable, Per-Game)
 ═══════════════════════════════════════════════════════════════════════════
 ]]
 
@@ -18,24 +18,22 @@ local player    = Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
 
 -- ════════════════════════════════════════════════════════════════
--- MOBILE / SCREEN DETECTION (FIXED - was missing entirely)
+-- MOBILE / SCREEN DETECTION
 -- ════════════════════════════════════════════════════════════════
 
 local _isMobile = UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled
 local _screenSize = workspace.CurrentCamera.ViewportSize
 
--- Update screen size when camera changes
 workspace.CurrentCamera:GetPropertyChangedSignal("ViewportSize"):Connect(function()
     _screenSize = workspace.CurrentCamera.ViewportSize
 end)
 
--- Responsive scale helper
 local function RS(pcValue, mobileValue)
     return _isMobile and mobileValue or pcValue
 end
 
 -- ════════════════════════════════════════════════════════════════
--- THEME (responsive)
+-- THEME
 -- ════════════════════════════════════════════════════════════════
 
 local Theme = {
@@ -75,11 +73,10 @@ local Theme = {
     CornerRadius  = UDim.new(0, 8),
     CornerLarge   = UDim.new(0, 12),
 
-    -- Responsive sizes
     WindowWidth   = RS(620, math.floor(math.min(_screenSize.X * 0.97, 460))),
     WindowHeight  = RS(480, math.floor(math.min(_screenSize.Y * 0.88, 580))),
     SidebarWidth  = RS(150, 110),
-    RowHeight     = RS(48, 52), -- slightly taller on mobile for finger tapping
+    RowHeight     = RS(48, 52),
     TitleHeight   = RS(42, 50),
     FontSize      = RS(14, 15),
     FontSizeSmall = RS(13, 14),
@@ -87,7 +84,237 @@ local Theme = {
     TabFontSize   = RS(14, 13),
 }
 
+-- ════════════════════════════════════════════════════════════════
+-- WEBHOOK SYSTEM
+-- ════════════════════════════════════════════════════════════════
+
+local WebhookSystem = {}
+WebhookSystem._url = nil
+WebhookSystem._config = {
+    -- Branding
+    Title       = "Gluttony Core",
+    TitleIcon   = "https://i.imgur.com/cThW0xR.png", -- your logo url
+    FooterText  = "Gluttony Core • Powered by Gluttony UI",
+    FooterIcon  = "https://i.imgur.com/cThW0xR.png",
+    -- Colors (Discord embed sidebar color as decimal)
+    Color       = 14431557, -- #DC3C3C in decimal (matches Theme.Accent)
+    -- Game info
+    GameName    = "Unknown Game",
+    -- Extra fields always included
+    AlwaysFields = true,
+}
+
+-- Convert RGB to decimal for Discord embed color
+function WebhookSystem.RGBToDecimal(r, g, b)
+    return r * 65536 + g * 256 + b
+end
+
+-- Helper: get player info fields
+local function GetPlayerFields()
+    local plr = Players.LocalPlayer
+    local fields = {}
+
+    -- Username
+    table.insert(fields, {
+        name  = "👤 Player",
+        value = string.format("**%s** (`%d`)", plr.DisplayName, plr.UserId),
+        inline = true
+    })
+
+    -- Game
+    local gameName = "Unknown"
+    pcall(function()
+        gameName = game:GetService("MarketplaceService"):GetProductInfo(game.PlaceId).Name
+    end)
+    table.insert(fields, {
+        name  = "🎮 Game",
+        value = string.format("**%s**", gameName),
+        inline = true
+    })
+
+    -- Server
+    table.insert(fields, {
+        name  = "🌐 Server",
+        value = string.format("`%s`", game.JobId ~= "" and game.JobId:sub(1,8).."..." or "Private"),
+        inline = true
+    })
+
+    return fields
+end
+
+-- Core send function
+function WebhookSystem:Send(options)
+    if not self._url or self._url == "" then
+        warn("[GluttonyUI][Webhook] No webhook URL set.")
+        return false, "No webhook URL"
+    end
+
+    options = options or {}
+
+    -- Build timestamp
+    local timestamp = os.date("!%Y-%m-%dT%H:%M:%SZ")
+
+    -- Build fields
+    local fields = {}
+
+    -- Player info fields (always shown if AlwaysFields is true)
+    if self._config.AlwaysFields then
+        local pf = GetPlayerFields()
+        for _, f in ipairs(pf) do
+            table.insert(fields, f)
+        end
+    end
+
+    -- Custom fields from caller
+    if options.Fields then
+        for _, f in ipairs(options.Fields) do
+            table.insert(fields, f)
+        end
+    end
+
+    -- Build embed
+    local embed = {
+        title       = options.Title or self._config.Title,
+        description = options.Description or "",
+        color       = options.Color or self._config.Color,
+        timestamp   = timestamp,
+        fields      = fields,
+        footer = {
+            text     = options.Footer or self._config.FooterText,
+            icon_url = options.FooterIcon or self._config.FooterIcon,
+        },
+        author = {
+            name     = options.Author or self._config.Title,
+            icon_url = options.AuthorIcon or self._config.TitleIcon,
+        },
+    }
+
+    -- Optional thumbnail
+    if options.Thumbnail then
+        embed.thumbnail = { url = options.Thumbnail }
+    end
+
+    -- Optional image
+    if options.Image then
+        embed.image = { url = options.Image }
+    end
+
+    -- Build payload
+    local payload = {
+        username   = options.Username or self._config.Title,
+        avatar_url = options.AvatarUrl or self._config.TitleIcon,
+        embeds     = { embed },
+    }
+
+    -- Optional content (plain text above embed)
+    if options.Content then
+        payload.content = options.Content
+    end
+
+    -- Encode and send
+    local ok, encoded = pcall(HttpService.JSONEncode, HttpService, payload)
+    if not ok then
+        warn("[GluttonyUI][Webhook] JSON encode failed:", encoded)
+        return false, "Encode failed"
+    end
+
+    local success, result = pcall(function()
+        local requestFunc = syn and syn.request
+            or (http_request and http_request)
+            or (request and request)
+            or nil
+
+        if not requestFunc then
+            error("No HTTP request function available")
+        end
+
+        local response = requestFunc({
+            Url     = self._url,
+            Method  = "POST",
+            Headers = {
+                ["Content-Type"] = "application/json",
+            },
+            Body    = encoded,
+        })
+
+        return response
+    end)
+
+    if not success then
+        warn("[GluttonyUI][Webhook] Request failed:", result)
+        return false, tostring(result)
+    end
+
+    return true, result
+end
+
+-- Shortcut: send a nice pre-built "action" embed
+function WebhookSystem:SendAction(actionTitle, description, fields, color)
+    return self:Send({
+        Title       = string.format("⚡ %s — %s", self._config.Title, actionTitle),
+        Description = description or "",
+        Color       = color or self._config.Color,
+        Fields      = fields or {},
+    })
+end
+
+-- Shortcut: send a startup / loaded embed
+function WebhookSystem:SendLoaded(gameName, extraFields)
+    return self:Send({
+        Title       = string.format("✅ %s — Script Loaded", self._config.Title),
+        Description = string.format(
+            "**%s** has successfully loaded on **%s**.",
+            Players.LocalPlayer.DisplayName,
+            gameName or self._config.GameName
+        ),
+        Color       = WebhookSystem.RGBToDecimal(60, 180, 90), -- green
+        Fields      = extraFields or {},
+        Thumbnail   = self._config.TitleIcon,
+    })
+end
+
+-- Shortcut: send an error embed
+function WebhookSystem:SendError(errorTitle, errorMsg)
+    return self:Send({
+        Title       = string.format("❌ %s — Error", self._config.Title),
+        Description = string.format("An error occurred:\n```\n%s\n```", tostring(errorMsg)),
+        Color       = WebhookSystem.RGBToDecimal(220, 60, 60), -- red
+        Fields      = {
+            { name = "⚠️ Error", value = tostring(errorTitle), inline = false }
+        },
+    })
+end
+
+-- Configure the webhook system
+function WebhookSystem:Configure(cfg)
+    cfg = cfg or {}
+    for k, v in pairs(cfg) do
+        self._config[k] = v
+    end
+    -- Auto-convert Color3 to decimal if provided
+    if cfg.AccentColor and typeof(cfg.AccentColor) == "Color3" then
+        self._config.Color = self.RGBToDecimal(
+            math.floor(cfg.AccentColor.R * 255),
+            math.floor(cfg.AccentColor.G * 255),
+            math.floor(cfg.AccentColor.B * 255)
+        )
+    end
+end
+
+function WebhookSystem:SetURL(url)
+    self._url = url
+end
+
+function WebhookSystem:GetURL()
+    return self._url
+end
+
+GluttonyUI.Webhook = WebhookSystem
+
+-- ════════════════════════════════════════════════════════════════
 -- NUMBER UTILITIES
+-- ════════════════════════════════════════════════════════════════
+
 local NumberSuffixes = {
     {"Dc",1e33},{"No",1e30},{"Oc",1e27},{"Sp",1e24},
     {"Sx",1e21},{"Qi",1e18},{"Qa",1e15},{"T",1e12},
@@ -154,7 +381,7 @@ function ThreadManager:IsRunning(key) return _threadRunning[key] == true end
 
 GluttonyUI.ThreadManager = ThreadManager
 
--- CONFIG
+-- CONFIG MANAGER
 local ConfigManager = {}
 ConfigManager._fileName = nil
 ConfigManager._enabled = false
@@ -303,7 +530,6 @@ local function HoverAccent(row)
 end
 
 local function SetupHover(row,baseColor,accentBar)
-    -- On mobile skip hover effects (no mouse enter/leave)
     if _isMobile then return end
     AddConnection(row.MouseEnter:Connect(function()
         Tween(row,{BackgroundColor3=Theme.Hover},0.15)
@@ -318,7 +544,7 @@ end
 local function RowColor(i) return (i%2==0) and Theme.Row or Theme.RowAlt end
 
 -- ════════════════════════════════════════════════════════════════
--- NOTIFICATIONS (FIXED - now _isMobile/_screenSize are defined)
+-- NOTIFICATIONS
 -- ════════════════════════════════════════════════════════════════
 
 local NotifContainer = nil
@@ -435,14 +661,11 @@ local function CreateTabIcon(parent, iconType, sbWidth, iconColor)
         circle="●",square="■",diamond="◆",bars="≡",triangle="▶",
         ["dot-grid"]="⊞",settings="⚙",bolt="⚡",shield="⛨",star="★",
         coin="$",trash="✕",["arrow-up"]="▲",fire="◈",list="☰",
-        refresh="⟳",target="◎",crown="♛",skull="☠"
-    }
-    local iconSizes={
-        ["arrow-up"]=RS(22,20),
+        refresh="⟳",target="◎",crown="♛",skull="☠",webhook="🔗",
     }
     local l=Instance.new("TextLabel"); l.Size=UDim2.new(1,0,1,0)
     l.BackgroundTransparency=1; l.Text=m[iconType] or "●"
-    l.TextColor3=iconColor or Theme.Accent; l.TextSize=iconSizes[iconType] or RS(16,14)
+    l.TextColor3=iconColor or Theme.Accent; l.TextSize=RS(16,14)
     l.Font=Enum.Font.GothamBold
     l.ZIndex=10; l.Parent=c
 end
@@ -456,9 +679,24 @@ local IconTypes={"circle","square","diamond","bars","triangle","dot-grid","bolt"
 function GluttonyUI:CreateWindow(options)
     if type(options)=="string" then options={Title=options} end
     options=options or {}
-    local title    = options.Title or "Gluttony Core"
+    local title      = options.Title or "Gluttony Core"
     local configName = options.ConfigName
-    local antiAfk  = options.AntiAFK
+    local antiAfk    = options.AntiAFK
+
+    -- Configure webhook if options provided
+    if options.Webhook then
+        local wh = options.Webhook
+        if wh.URL then WebhookSystem:SetURL(wh.URL) end
+        WebhookSystem:Configure({
+            Title       = wh.Title       or title,
+            TitleIcon   = wh.TitleIcon   or WebhookSystem._config.TitleIcon,
+            FooterText  = wh.FooterText  or (title .. " • Gluttony UI"),
+            FooterIcon  = wh.FooterIcon  or WebhookSystem._config.FooterIcon,
+            GameName    = wh.GameName    or options.GameName or "Unknown Game",
+            Color       = wh.Color       or WebhookSystem._config.Color,
+            AccentColor = wh.AccentColor or nil,
+        })
+    end
 
     for _,v in pairs(playerGui:GetChildren()) do
         if v.Name=="GluttonyUILib" then v:Destroy() end
@@ -468,7 +706,6 @@ function GluttonyUI:CreateWindow(options)
     ConfigManager:Init(configName); ConfigManager:Load()
     if antiAfk then StartAntiAFK() end
 
-    -- Recalculate responsive sizes fresh each CreateWindow
     _screenSize = workspace.CurrentCamera.ViewportSize
     _isMobile   = UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled
 
@@ -487,9 +724,7 @@ function GluttonyUI:CreateWindow(options)
     -- MAIN FRAME
     local main=Instance.new("Frame"); main.Name="Main"
     main.Size=UDim2.new(0,WW,0,WH)
-    -- MAIN FRAME position — replace the existing position block
     if _isMobile then
-        -- Pure offset so position math is always predictable
         main.Position = UDim2.new(0, math.floor((_screenSize.X - WW) / 2), 0, math.floor((_screenSize.Y - WH) / 2))
     else
         main.Position = UDim2.new(0.5, -WW/2, 0.5, -WH/2)
@@ -531,7 +766,6 @@ function GluttonyUI:CreateWindow(options)
     titleLabel.Font=Theme.Font; titleLabel.TextXAlignment=Enum.TextXAlignment.Left
     titleLabel.ZIndex=11; titleLabel.Parent=titleBar
 
-    -- Button sizes: slightly larger on mobile for touch
     local btnSz = RS(28, 34)
     local btnGap = RS(38, 44)
     local btn2Gap = RS(74, 84)
@@ -568,14 +802,14 @@ function GluttonyUI:CreateWindow(options)
         DisconnectAll(); screenGui:Destroy()
     end))
 
-    -- MINIMIZE BUTTON (FIXED)
+    -- MINIMIZE BUTTON
     local minBtn=Instance.new("TextButton")
     minBtn.Size=UDim2.new(0,btnSz,0,btnSz)
     minBtn.Position=UDim2.new(1,-btn2Gap,0.5,-btnSz/2)
     minBtn.BackgroundColor3=Color3.fromRGB(45,45,55)
     minBtn.Text=""; minBtn.BorderSizePixel=0
     minBtn.AutoButtonColor=false; minBtn.ZIndex=12; minBtn.Parent=titleBar
-    minBtn.Active = true
+    minBtn.Active=true
     Corner(minBtn,Theme.CornerRadius)
 
     local minLine=Instance.new("Frame"); minLine.Size=UDim2.new(0,12,0,2)
@@ -584,6 +818,8 @@ function GluttonyUI:CreateWindow(options)
     Corner(minLine,UDim.new(1,0))
 
     local minimized = false
+    local guiVisible = true
+
     if not _isMobile then
         AddConnection(minBtn.MouseEnter:Connect(function()
             Tween(minBtn,{BackgroundColor3=Color3.fromRGB(60,60,75)},0.15)
@@ -594,60 +830,41 @@ function GluttonyUI:CreateWindow(options)
             Tween(minLine,{BackgroundColor3=Theme.TextDim},0.15)
         end))
     end
-    -- SHARED VISIBILITY STATE (add this right after Window={} is created)
-    local guiVisible = true  -- MOVE this up here, remove it from the TB section below
 
     AddConnection(minBtn.MouseButton1Click:Connect(function()
         if guiVisible then
-            -- Hide
-            guiVisible = false
-            minimized = true
-            Tween(main, {Size = UDim2.new(0, WW, 0, 0)}, 0.3)
+            guiVisible = false; minimized = true
+            Tween(main, {Size=UDim2.new(0,WW,0,0)}, 0.3)
             task.delay(0.3, function()
-                if main and main.Parent then
-                    main.Visible = false
-                end
+                if main and main.Parent then main.Visible=false end
             end)
         else
-            -- Show
-            guiVisible = true
-            minimized = false
-            main.Visible = true
-            main.Size = UDim2.new(0, WW, 0, 0)
-            Tween(main, {Size = UDim2.new(0, WW, 0, WH)}, 0.35, Enum.EasingStyle.Back)
+            guiVisible = true; minimized = false
+            main.Visible=true; main.Size=UDim2.new(0,WW,0,0)
+            Tween(main, {Size=UDim2.new(0,WW,0,WH)}, 0.35, Enum.EasingStyle.Back)
         end
     end))
 
-    -- DRAG (PC only — mobile is fixed position, no drag)
+    -- DRAG (PC only)
     if not _isMobile then
-        local dragging      = false
-        local dragStartInput = nil
-        local startPos      = nil
-
+        local dragging=false; local dragStartInput=nil; local startPos=nil
         AddConnection(titleBar.InputBegan:Connect(function(input)
-            if input.UserInputType ~= Enum.UserInputType.MouseButton1 then return end
-            dragging      = true
-            dragStartInput = Vector2.new(input.Position.X, input.Position.Y)
-            local absPos  = main.AbsolutePosition
-            startPos      = UDim2.new(0, absPos.X, 0, absPos.Y)
+            if input.UserInputType~=Enum.UserInputType.MouseButton1 then return end
+            dragging=true; dragStartInput=Vector2.new(input.Position.X,input.Position.Y)
+            local absPos=main.AbsolutePosition
+            startPos=UDim2.new(0,absPos.X,0,absPos.Y)
         end))
-
         AddConnection(UserInputService.InputChanged:Connect(function(input)
             if not dragging or not dragStartInput or not startPos then return end
-            if input.UserInputType ~= Enum.UserInputType.MouseMovement then return end
-            local current = Vector2.new(input.Position.X, input.Position.Y)
-            local d       = current - dragStartInput
-            main.Position = UDim2.new(
-                startPos.X.Scale, startPos.X.Offset + d.X,
-                startPos.Y.Scale, startPos.Y.Offset + d.Y)
+            if input.UserInputType~=Enum.UserInputType.MouseMovement then return end
+            local current=Vector2.new(input.Position.X,input.Position.Y)
+            local d=current-dragStartInput
+            main.Position=UDim2.new(startPos.X.Scale,startPos.X.Offset+d.X,
+                startPos.Y.Scale,startPos.Y.Offset+d.Y)
         end))
-
-        -- In the template, find InputEnded for the toggle button and change:
         AddConnection(UserInputService.InputEnded:Connect(function(input)
-            if input.UserInputType ~= Enum.UserInputType.MouseButton1 then return end
-            dragging = false
-            dragStartInput = nil
-            startPos = nil
+            if input.UserInputType~=Enum.UserInputType.MouseButton1 then return end
+            dragging=false; dragStartInput=nil; startPos=nil
         end))
     end
 
@@ -675,7 +892,7 @@ function GluttonyUI:CreateWindow(options)
     content.ClipsDescendants=false; content.ZIndex=5; content.Parent=inner
     Corner(content,Theme.CornerLarge)
 
-    -- KEYBIND (PC only — RightShift to toggle)
+    -- KEYBIND
     if not _isMobile then
         AddConnection(UserInputService.InputBegan:Connect(function(input,processed)
             if processed then return end
@@ -732,7 +949,7 @@ function GluttonyUI:CreateWindow(options)
         local isFirst=Window._tabCount==1
         iconType=iconType or IconTypes[((Window._tabCount-1)%#IconTypes)+1]
 
-        local tabBtnH = RS(42, 46)
+        local tabBtnH=RS(42,46)
         local tabBtn=Instance.new("TextButton"); tabBtn.Name="Tab_"..name
         tabBtn.Size=UDim2.new(1,-RS(14,10),0,tabBtnH)
         tabBtn.BackgroundColor3=isFirst and Theme.SelectedTab or Theme.Sidebar
@@ -750,8 +967,7 @@ function GluttonyUI:CreateWindow(options)
 
         CreateTabIcon(tabBtn, iconType, SW, iconColor)
 
-
-        local iconW = RS(44, 38)
+        local iconW=RS(44,38)
         local tabLabel=Instance.new("TextLabel"); tabLabel.Name="Label"
         tabLabel.Size=UDim2.new(1,-iconW,1,0)
         tabLabel.Position=UDim2.new(0,iconW,0,0)
@@ -779,8 +995,7 @@ function GluttonyUI:CreateWindow(options)
         AddConnection(tabBtn.MouseButton1Click:Connect(function() SwitchTab(name) end))
         Window._tabButtons[name]=tabBtn
 
-        local pagePadH = RS(18,14)
-        local pagePadS = RS(22,16)
+        local pagePadH=RS(18,14); local pagePadS=RS(22,16)
         local page=Instance.new("ScrollingFrame"); page.Name="Page_"..name
         page.Size=UDim2.new(1,0,1,0); page.BackgroundTransparency=1
         page.BorderSizePixel=0; page.ScrollBarThickness=RS(4,5)
@@ -919,8 +1134,7 @@ function GluttonyUI:CreateWindow(options)
             row.Parent=page; Corner(row,Theme.CornerRadius)
             local ab=HoverAccent(row)
 
-            -- On mobile, shrink right-side padding
-            local lblW = _isMobile and -190 or -180
+            local lblW=_isMobile and -190 or -180
             local lbl=Instance.new("TextLabel"); lbl.Size=UDim2.new(1,lblW,1,0)
             lbl.Position=UDim2.new(0,18,0,0); lbl.BackgroundTransparency=1
             lbl.Text=labelText; lbl.TextColor3=Theme.Text; lbl.TextSize=Theme.FontSize
@@ -1112,10 +1326,9 @@ function GluttonyUI:CreateWindow(options)
             vl.TextColor3=Theme.Accent; vl.TextSize=13; vl.Font=Theme.Font
             vl.ZIndex=8; vl.Parent=vb
 
-            local trackW=RS(100,90); local trackX=RS(-112,-106)
-            local trackH=RS(6,8)
+            local trackW=RS(100,90); local trackH=RS(6,8)
             local track=Instance.new("Frame"); track.Size=UDim2.new(0,trackW,0,trackH)
-            track.Position=UDim2.new(1,trackX,0.5,-trackH/2)
+            track.Position=UDim2.new(1,-(trackW+RS(12,10)),0.5,-trackH/2)
             track.BackgroundColor3=Theme.SliderBg; track.BorderSizePixel=0
             track.ZIndex=8; track.Parent=row; Corner(track,UDim.new(1,0))
 
@@ -1463,7 +1676,6 @@ function GluttonyUI:CreateWindow(options)
             lbl.Font=Theme.Font; lbl.TextXAlignment=Enum.TextXAlignment.Left
             lbl.TextTruncate=Enum.TextTruncate.AtEnd; lbl.ZIndex=7; lbl.Parent=row
 
-            -- Toggle
             local tbW=RS(42,46); local tbH=RS(22,26)
             local tbg=Instance.new("Frame"); tbg.Size=UDim2.new(0,tbW,0,tbH)
             tbg.Position=UDim2.new(0,RS(110,100),0.5,-tbH/2)
@@ -1482,7 +1694,6 @@ function GluttonyUI:CreateWindow(options)
             local tbtn=Instance.new("TextButton"); tbtn.Size=UDim2.new(1,0,1,0)
             tbtn.BackgroundTransparency=1; tbtn.Text=""; tbtn.ZIndex=10; tbtn.Parent=tbg
 
-            -- Threshold Input
             local thW=RS(80,74)
             local thBg=Instance.new("Frame"); thBg.Size=UDim2.new(0,thW,0,RS(30,34))
             thBg.Position=UDim2.new(0,RS(164,156),0.5,-RS(15,17))
@@ -1509,7 +1720,6 @@ function GluttonyUI:CreateWindow(options)
                 end
             end))
 
-            -- Action Button
             local afW=RS(72,68)
             local af=Instance.new("Frame"); af.Size=UDim2.new(0,afW,0,RS(32,36))
             af.Position=UDim2.new(1,-(afW+RS(14,12)),0.5,-RS(16,18))
@@ -1612,7 +1822,7 @@ function GluttonyUI:CreateWindow(options)
             }
         end
 
-        -- DROPDOWN (with flip + mobile fix)
+        -- DROPDOWN
         function Tab:AddDropdown(labelText,options,callback)
             local order=NextOrder(); local isOpen=false
             local saved=StateStore[labelText]; local selected=nil
@@ -1665,7 +1875,7 @@ function GluttonyUI:CreateWindow(options)
             ddClick.BackgroundTransparency=1; ddClick.Text=""
             ddClick.ZIndex=14; ddClick.Parent=ddBtn
 
-            local maxPanelH = _isMobile and 140 or 160
+            local maxPanelH=_isMobile and 140 or 160
             local panel=Instance.new("ScrollingFrame")
             panel.Size=UDim2.new(0,0,0,0)
             panel.BackgroundColor3=Theme.DropdownBg; panel.BorderSizePixel=0
@@ -2073,6 +2283,7 @@ function GluttonyUI:CreateWindow(options)
 
             local itemRows={}
             local activeRowDropdown=nil
+            local tcSz=RS(18,22)
 
             local function GSI()
                 local indices={}
@@ -2120,8 +2331,8 @@ function GluttonyUI:CreateWindow(options)
 
             local totalColWidth=0
             for _,col in ipairs(columns) do totalColWidth=totalColWidth+(col.Width or 70)+6 end
-            local ddWidth = rowDropdown and (rowDropdown.Width or RS(55,48)) or 0
-            local ddGap = rowDropdown and 6 or 0
+            local ddWidth=rowDropdown and (rowDropdown.Width or RS(55,48)) or 0
+            local ddGap=rowDropdown and 6 or 0
             local msRowH=RS(38,44)
 
             for i,item in ipairs(normalizedItems) do
@@ -2140,7 +2351,6 @@ function GluttonyUI:CreateWindow(options)
                 il2.Font=Theme.FontLight; il2.TextXAlignment=Enum.TextXAlignment.Left
                 il2.TextTruncate=Enum.TextTruncate.AtEnd; il2.ZIndex=9; il2.Parent=ir
 
-                -- Columns
                 for ci,col in ipairs(columns) do
                     local cw=col.Width or 70; local pw=0
                     for pi=1,ci-1 do pw=pw+(columns[pi].Width or 70)+6 end
@@ -2161,7 +2371,6 @@ function GluttonyUI:CreateWindow(options)
                     cv.TextSize=RS(11,12); cv.Font=Theme.Font
                 end
 
-                -- Row Dropdown
                 local ddBtnLabel2=nil
                 if rowDropdown then
                     local ddOpts=rowDropdown.Options or {}
@@ -2358,14 +2567,12 @@ function GluttonyUI:CreateWindow(options)
                     end
                 end
 
-                -- Toggle
                 local tbgW=RS(40,44); local tbgH=RS(22,26); local tbgX=RS(-52,-58)
                 local tbg=Instance.new("Frame"); tbg.Size=UDim2.new(0,tbgW,0,tbgH)
                 tbg.Position=UDim2.new(1,tbgX,0.5,-tbgH/2)
                 tbg.BackgroundColor3=isOn and Theme.Accent or Theme.ProtectedOff
                 tbg.BorderSizePixel=0; tbg.ZIndex=10; tbg.Parent=ir; Corner(tbg,UDim.new(1,0))
 
-                local tcSz=RS(18,22)
                 local tc=Instance.new("Frame"); tc.Size=UDim2.new(0,tcSz,0,tcSz)
                 tc.Position=isOn
                     and UDim2.new(1,-(tcSz+2),0.5,-tcSz/2)
@@ -2513,7 +2720,7 @@ function GluttonyUI:CreateWindow(options)
                             rd.ToggleBg.BackgroundColor3=isOn2 and Theme.Accent or Theme.ProtectedOff
                             rd.ToggleCircle.Position=isOn2
                                 and UDim2.new(1,-(tcSz+2),0.5,-tcSz/2)
-                                or UDim2.new(0,2,0.5,-RS(9,11))
+                                or UDim2.new(0,2,0.5,-tcSz/2)
                         end
                     end; UC(); SortList()
                 end,
@@ -2563,6 +2770,284 @@ function GluttonyUI:CreateWindow(options)
             }
         end
 
+        -- ════════════════════════════════════════════════════════════════
+        -- WEBHOOK INPUT (new Tab element)
+        -- ════════════════════════════════════════════════════════════════
+        function Tab:AddWebhookInput(opts)
+            opts = opts or {}
+            local order = NextOrder()
+            local labelText  = opts.Label       or "Webhook URL"
+            local placeholder= opts.Placeholder or "https://discord.com/api/webhooks/..."
+            local configKey  = opts.ConfigKey   or "_webhook_url"
+            local onSave     = opts.OnSave      -- optional callback(url)
+            local testTitle  = opts.TestTitle   or "🔗 Webhook Test"
+            local testDesc   = opts.TestDescription or "This is a test message from **Gluttony Core**.\nWebhook is working correctly! ✅"
+            local testColor  = opts.TestColor   or WebhookSystem._config.Color
+            local testFields = opts.TestFields  or {}
+
+            -- Load saved URL
+            local savedUrl = StateStore[configKey] or ""
+            WebhookSystem:SetURL(savedUrl)
+
+            -- Section header
+            local secLabel = Instance.new("TextLabel")
+            secLabel.Size = UDim2.new(1,0,0,28)
+            secLabel.BackgroundTransparency = 1
+            secLabel.Text = "🔗 " .. labelText
+            secLabel.TextColor3 = Theme.Accent
+            secLabel.TextSize = RS(15,16)
+            secLabel.Font = Theme.Font
+            secLabel.TextXAlignment = Enum.TextXAlignment.Left
+            secLabel.LayoutOrder = order
+            secLabel.ZIndex = 7
+            secLabel.Parent = page
+
+            -- Info hint
+            local hintOrder = NextOrder()
+            local hintH = RS(54,62)
+            local hintFrame = Instance.new("Frame")
+            hintFrame.Size = UDim2.new(1,0,0,hintH)
+            hintFrame.BackgroundColor3 = Color3.fromRGB(28,32,50)
+            hintFrame.BorderSizePixel = 0
+            hintFrame.LayoutOrder = hintOrder
+            hintFrame.ZIndex = 6
+            hintFrame.Parent = page
+            Corner(hintFrame, Theme.CornerRadius)
+            Stroke(hintFrame, Color3.fromRGB(88,101,242), 1, 0.5)
+
+            local discordBar = Instance.new("Frame")
+            discordBar.Size = UDim2.new(0,4,1,-16)
+            discordBar.Position = UDim2.new(0,8,0,8)
+            discordBar.BackgroundColor3 = Color3.fromRGB(88,101,242)
+            discordBar.BorderSizePixel = 0; discordBar.ZIndex = 7; discordBar.Parent = hintFrame
+            Corner(discordBar, UDim.new(1,0))
+
+            local discordIcon = Instance.new("TextLabel")
+            discordIcon.Size = UDim2.new(0,28,0,28)
+            discordIcon.Position = UDim2.new(0,18,0.5,-14)
+            discordIcon.BackgroundTransparency = 1
+            discordIcon.Text = "🔗"; discordIcon.TextSize = 18
+            discordIcon.ZIndex = 8; discordIcon.Parent = hintFrame
+
+            local hintText = Instance.new("TextLabel")
+            hintText.Size = UDim2.new(1,-58,1,-16)
+            hintText.Position = UDim2.new(0,50,0,8)
+            hintText.BackgroundTransparency = 1
+            hintText.Text = "Paste your Discord webhook URL below. Embeds will include player info, game, and server."
+            hintText.TextColor3 = Color3.fromRGB(180,190,255)
+            hintText.TextSize = RS(12,13)
+            hintText.Font = Theme.FontLight
+            hintText.TextXAlignment = Enum.TextXAlignment.Left
+            hintText.TextWrapped = true; hintText.ZIndex = 7; hintText.Parent = hintFrame
+
+            -- URL Input row
+            local urlOrder = NextOrder()
+            local urlRow = Instance.new("Frame")
+            urlRow.Size = UDim2.new(1,0,0,RH)
+            urlRow.BackgroundColor3 = RowColor(urlOrder)
+            urlRow.BorderSizePixel = 0
+            urlRow.LayoutOrder = urlOrder
+            urlRow.ZIndex = 6; urlRow.ClipsDescendants = true
+            urlRow.Parent = page
+            Corner(urlRow, Theme.CornerRadius)
+            local urlAb = HoverAccent(urlRow)
+
+            local urlLbl = Instance.new("TextLabel")
+            urlLbl.Size = UDim2.new(0,RS(65,55),1,0)
+            urlLbl.Position = UDim2.new(0,18,0,0)
+            urlLbl.BackgroundTransparency = 1
+            urlLbl.Text = "URL"
+            urlLbl.TextColor3 = Theme.Text; urlLbl.TextSize = Theme.FontSize
+            urlLbl.Font = Theme.FontLight
+            urlLbl.TextXAlignment = Enum.TextXAlignment.Left
+            urlLbl.ZIndex = 7; urlLbl.Parent = urlRow
+
+            local urlInputW = RS(340,260)
+            local urlInputBg = Instance.new("Frame")
+            urlInputBg.Size = UDim2.new(0,urlInputW,0,RS(30,34))
+            urlInputBg.Position = UDim2.new(1,-(urlInputW+RS(14,12)),0.5,-RS(15,17))
+            urlInputBg.BackgroundColor3 = Theme.InputBg
+            urlInputBg.BorderSizePixel = 0; urlInputBg.ZIndex = 8; urlInputBg.Parent = urlRow
+            Corner(urlInputBg, UDim.new(0,6))
+            local urlGlow = Stroke(urlInputBg, Color3.fromRGB(88,101,242), 1.5, 1)
+
+            local urlInput = Instance.new("TextBox")
+            urlInput.Size = UDim2.new(1,-16,1,0)
+            urlInput.Position = UDim2.new(0,8,0,0)
+            urlInput.BackgroundTransparency = 1
+            urlInput.Text = savedUrl
+            urlInput.PlaceholderText = placeholder
+            urlInput.PlaceholderColor3 = Theme.TextDim
+            urlInput.TextColor3 = Theme.Text
+            urlInput.TextSize = RS(11,12); urlInput.Font = Theme.FontLight
+            urlInput.ClearTextOnFocus = false
+            urlInput.TextXAlignment = Enum.TextXAlignment.Left
+            urlInput.ZIndex = 9; urlInput.Parent = urlInputBg
+
+            -- Status dot
+            local statusDot = Instance.new("Frame")
+            statusDot.Size = UDim2.new(0,8,0,8)
+            statusDot.Position = UDim2.new(0,RS(92,74),0.5,-4)
+            statusDot.BackgroundColor3 = savedUrl ~= "" and Theme.NotifSuccess or Theme.ToggleOff
+            statusDot.BorderSizePixel = 0; statusDot.ZIndex = 9; statusDot.Parent = urlRow
+            Corner(statusDot, UDim.new(1,0))
+
+            AddConnection(urlInput.Focused:Connect(function()
+                Tween(urlGlow,{Transparency=0.3},0.2)
+            end))
+            AddConnection(urlInput.FocusLost:Connect(function()
+                Tween(urlGlow,{Transparency=1},0.2)
+                local url = urlInput.Text
+                StateStore[configKey] = url
+                ConfigManager:Set(configKey, url)
+                WebhookSystem:SetURL(url)
+                Tween(statusDot,{
+                    BackgroundColor3 = url ~= "" and Theme.NotifSuccess or Theme.ToggleOff
+                },0.3)
+                if onSave then task.spawn(onSave, url) end
+            end))
+            SetupHover(urlRow, RowColor(urlOrder), urlAb)
+
+            -- Save & Test button row
+            local btnRowOrder = NextOrder()
+            local btnRow = Instance.new("Frame")
+            btnRow.Size = UDim2.new(1,0,0,RH)
+            btnRow.BackgroundColor3 = RowColor(btnRowOrder)
+            btnRow.BorderSizePixel = 0
+            btnRow.LayoutOrder = btnRowOrder
+            btnRow.ZIndex = 6; btnRow.ClipsDescendants = true
+            btnRow.Parent = page
+            Corner(btnRow, Theme.CornerRadius)
+            local btnAb = HoverAccent(btnRow)
+
+            local btnLbl = Instance.new("TextLabel")
+            btnLbl.Size = UDim2.new(1,-220,1,0)
+            btnLbl.Position = UDim2.new(0,18,0,0)
+            btnLbl.BackgroundTransparency = 1
+            btnLbl.Text = "Test Webhook"
+            btnLbl.TextColor3 = Theme.Text; btnLbl.TextSize = Theme.FontSize
+            btnLbl.Font = Theme.FontLight
+            btnLbl.TextXAlignment = Enum.TextXAlignment.Left
+            btnLbl.ZIndex = 7; btnLbl.Parent = btnRow
+
+            -- Test button (Discord blue)
+            local testBtnW = RS(100,90)
+            local testBtnFrame = Instance.new("Frame")
+            testBtnFrame.Size = UDim2.new(0,testBtnW,0,RS(32,36))
+            testBtnFrame.Position = UDim2.new(1,-(testBtnW+RS(14,12)),0.5,-RS(16,18))
+            testBtnFrame.BackgroundTransparency = 1
+            testBtnFrame.ZIndex = 7; testBtnFrame.Parent = btnRow
+
+            local testBtnShadow = Instance.new("Frame")
+            testBtnShadow.Size = UDim2.new(1,2,1,2)
+            testBtnShadow.Position = UDim2.new(0,-1,0,2)
+            testBtnShadow.BackgroundColor3 = Theme.Shadow
+            testBtnShadow.BackgroundTransparency = 0.82
+            testBtnShadow.BorderSizePixel = 0; testBtnShadow.ZIndex = 7
+            testBtnShadow.Parent = testBtnFrame
+            Corner(testBtnShadow, Theme.CornerRadius)
+
+            local discordColor = Color3.fromRGB(88,101,242)
+            local testBtn = Instance.new("TextButton")
+            testBtn.Size = UDim2.new(1,-2,1,-2)
+            testBtn.Position = UDim2.new(0,1,0,0)
+            testBtn.BackgroundColor3 = discordColor
+            testBtn.Text = "Send Test"
+            testBtn.TextColor3 = Theme.Text
+            testBtn.TextSize = Theme.FontSizeSmall; testBtn.Font = Theme.Font
+            testBtn.BorderSizePixel = 0; testBtn.AutoButtonColor = false
+            testBtn.ZIndex = 8; testBtn.Parent = testBtnFrame
+            Corner(testBtn, Theme.CornerRadius)
+            local testGlow = Stroke(testBtn, discordColor, 1.5, 0.6)
+
+            local testBusy = false
+            if not _isMobile then
+                AddConnection(testBtn.MouseEnter:Connect(function()
+                    if not testBusy then
+                        Tween(testBtn,{BackgroundColor3=Color3.fromRGB(108,121,255)},0.15)
+                        Tween(testGlow,{Transparency=0.3},0.2)
+                    end
+                end))
+                AddConnection(testBtn.MouseLeave:Connect(function()
+                    if not testBusy then
+                        Tween(testBtn,{BackgroundColor3=discordColor},0.15)
+                        Tween(testGlow,{Transparency=0.6},0.2)
+                    end
+                end))
+            end
+
+            AddConnection(testBtn.MouseButton1Click:Connect(function()
+                if testBusy then return end
+                local url = urlInput.Text
+                if url == "" then
+                    GluttonyUI:Notify("Webhook", "Please enter a webhook URL first.", "warning", 3)
+                    Tween(urlGlow,{Transparency=0.2,Color=Theme.NotifWarning},0.2)
+                    task.delay(1.5,function()
+                        Tween(urlGlow,{Transparency=1,Color=Color3.fromRGB(88,101,242)},0.3)
+                    end)
+                    return
+                end
+                testBusy = true
+                -- Save URL before test
+                WebhookSystem:SetURL(url)
+                StateStore[configKey] = url
+                ConfigManager:Set(configKey, url)
+
+                -- Animate button
+                testBtn.Text = "Sending..."
+                Tween(testBtn,{BackgroundColor3=Color3.fromRGB(100,100,120)},0.15)
+                Tween(testBtn,{Size=UDim2.new(1,-6,1,-4)},0.06)
+                task.delay(0.06,function()
+                    Tween(testBtn,{Size=UDim2.new(1,-2,1,-2)},0.1,Enum.EasingStyle.Back)
+                end)
+
+                task.spawn(function()
+                    local ok, result = WebhookSystem:Send({
+                        Title       = testTitle,
+                        Description = testDesc,
+                        Color       = testColor,
+                        Fields      = testFields,
+                    })
+
+                    if ok then
+                        testBtn.Text = "✅ Sent!"
+                        Tween(testBtn,{BackgroundColor3=Theme.NotifSuccess},0.2)
+                        Tween(statusDot,{BackgroundColor3=Theme.NotifSuccess},0.3)
+                        GluttonyUI:Notify("Webhook", "Test message sent successfully!", "success", 3)
+                    else
+                        testBtn.Text = "❌ Failed"
+                        Tween(testBtn,{BackgroundColor3=Theme.NotifError},0.2)
+                        Tween(statusDot,{BackgroundColor3=Theme.NotifError},0.3)
+                        GluttonyUI:Notify("Webhook", "Failed to send. Check your URL.", "error", 4)
+                    end
+
+                    task.delay(2.5, function()
+                        if testBtn and testBtn.Parent then
+                            testBtn.Text = "Send Test"
+                            Tween(testBtn,{BackgroundColor3=discordColor},0.2)
+                            testBusy = false
+                        end
+                    end)
+                end)
+            end))
+            SetupHover(btnRow, RowColor(btnRowOrder), btnAb)
+
+            -- Return controls
+            return {
+                GetURL = function() return urlInput.Text end,
+                SetURL = function(_, url)
+                    urlInput.Text = url
+                    StateStore[configKey] = url
+                    ConfigManager:Set(configKey, url)
+                    WebhookSystem:SetURL(url)
+                    Tween(statusDot,{
+                        BackgroundColor3 = url ~= "" and Theme.NotifSuccess or Theme.ToggleOff
+                    },0.3)
+                end,
+                Send = function(_, sendOpts) return WebhookSystem:Send(sendOpts) end,
+            }
+        end
+
         return Tab
     end -- end Window:AddTab
 
@@ -2577,9 +3062,15 @@ function GluttonyUI:CreateWindow(options)
     function Window:SetValue(n,v) ConfigManager:Set(n,v) end
     function Window:SaveConfig() ConfigManager:Save() end
     function Window:ClearConfig() StateStore={}; ConfigManager:Save() end
+    function Window:SendWebhook(opts) return WebhookSystem:Send(opts) end
+    function Window:GetWebhook() return WebhookSystem end
+
     task.defer(function() ConfigManager:ApplyToUI() end)
 
-    -- SETTINGS TAB
+    -- ════════════════════════════════════════════════════════════════
+    -- SETTINGS TAB (with built-in Webhook section)
+    -- ════════════════════════════════════════════════════════════════
+
     local function BuildSettingsTab()
         local so=999
         local sb=Instance.new("TextButton"); sb.Name="Tab_Settings"
@@ -2633,6 +3124,7 @@ function GluttonyUI:CreateWindow(options)
         end))
         Window._pages["Settings"]=sp
 
+        -- Title
         local tf=Instance.new("Frame"); tf.Size=UDim2.new(1,0,0,42)
         tf.BackgroundTransparency=1; tf.LayoutOrder=0; tf.ZIndex=7; tf.Parent=sp
         local ptl=Instance.new("TextLabel"); ptl.Size=UDim2.new(1,0,0,34)
@@ -2648,11 +3140,11 @@ function GluttonyUI:CreateWindow(options)
             NumberSequenceKeypoint.new(0,0),
             NumberSequenceKeypoint.new(0.7,0),
             NumberSequenceKeypoint.new(1,1)
-        })
-        ulg.Parent=ul
+        }); ulg.Parent=ul
 
         local lo=0; local function NSO() lo=lo+1; return lo end
 
+        -- ── Interface section ──
         local il2=Instance.new("TextLabel"); il2.Size=UDim2.new(1,0,0,30)
         il2.BackgroundTransparency=1; il2.Text="Interface"
         il2.TextColor3=Theme.Accent; il2.TextSize=RS(15,16); il2.Font=Theme.Font
@@ -2739,9 +3231,222 @@ function GluttonyUI:CreateWindow(options)
         end))
         SetupHover(or_,RowColor(oo),oa); AO(ov)
 
-        local spacer=Instance.new("Frame"); spacer.Size=UDim2.new(1,0,0,20)
+        -- ── Spacer ──
+        local spacer=Instance.new("Frame"); spacer.Size=UDim2.new(1,0,0,16)
         spacer.BackgroundTransparency=1; spacer.LayoutOrder=NSO(); spacer.Parent=sp
 
+        -- ── Webhook section in Settings ──
+        local whSecLabel=Instance.new("TextLabel"); whSecLabel.Size=UDim2.new(1,0,0,30)
+        whSecLabel.BackgroundTransparency=1; whSecLabel.Text="Discord Webhook"
+        whSecLabel.TextColor3=Theme.Accent; whSecLabel.TextSize=RS(15,16); whSecLabel.Font=Theme.Font
+        whSecLabel.TextXAlignment=Enum.TextXAlignment.Left; whSecLabel.LayoutOrder=NSO()
+        whSecLabel.ZIndex=7; whSecLabel.Parent=sp
+
+        -- Webhook hint card
+        local whHintH=RS(64,74)
+        local whHint=Instance.new("Frame"); whHint.Size=UDim2.new(1,0,0,whHintH)
+        whHint.BackgroundColor3=Color3.fromRGB(28,32,50); whHint.BorderSizePixel=0
+        whHint.LayoutOrder=NSO(); whHint.ZIndex=6; whHint.Parent=sp
+        Corner(whHint,Theme.CornerRadius); Stroke(whHint,Color3.fromRGB(88,101,242),1,0.4)
+
+        local whBar=Instance.new("Frame"); whBar.Size=UDim2.new(0,4,1,-16)
+        whBar.Position=UDim2.new(0,8,0,8); whBar.BackgroundColor3=Color3.fromRGB(88,101,242)
+        whBar.BorderSizePixel=0; whBar.ZIndex=7; whBar.Parent=whHint; Corner(whBar,UDim.new(1,0))
+
+        local whIcon=Instance.new("TextLabel"); whIcon.Size=UDim2.new(0,32,0,32)
+        whIcon.Position=UDim2.new(0,18,0.5,-16)
+        whIcon.BackgroundColor3=Color3.fromRGB(88,101,242); whIcon.BackgroundTransparency=0.8
+        whIcon.BorderSizePixel=0; whIcon.Text=""; whIcon.ZIndex=8; whIcon.Parent=whHint
+        Corner(whIcon,UDim.new(0,6))
+
+        local whIconLbl=Instance.new("TextLabel"); whIconLbl.Size=UDim2.new(1,0,1,0)
+        whIconLbl.BackgroundTransparency=1; whIconLbl.Text="🔗"
+        whIconLbl.TextSize=16; whIconLbl.ZIndex=9; whIconLbl.Parent=whIcon
+
+        local whHintText=Instance.new("TextLabel"); whHintText.Size=UDim2.new(1,-64,1,-16)
+        whHintText.Position=UDim2.new(0,58,0,8); whHintText.BackgroundTransparency=1
+        whHintText.Text="Set your Discord webhook URL to enable rich embed notifications with player stats, game info, and server details."
+        whHintText.TextColor3=Color3.fromRGB(180,190,255); whHintText.TextSize=RS(12,13)
+        whHintText.Font=Theme.FontLight; whHintText.TextXAlignment=Enum.TextXAlignment.Left
+        whHintText.TextWrapped=true; whHintText.ZIndex=7; whHintText.Parent=whHint
+
+        -- Webhook URL row in Settings
+        local whUrlOrder=NSO()
+        local whUrlRow=Instance.new("Frame"); whUrlRow.Size=UDim2.new(1,0,0,RH)
+        whUrlRow.BackgroundColor3=RowColor(whUrlOrder); whUrlRow.BorderSizePixel=0
+        whUrlRow.LayoutOrder=whUrlOrder; whUrlRow.ZIndex=6; whUrlRow.ClipsDescendants=true
+        whUrlRow.Parent=sp; Corner(whUrlRow,Theme.CornerRadius)
+        local whUrlAb=HoverAccent(whUrlRow)
+
+        local whUrlLbl=Instance.new("TextLabel"); whUrlLbl.Size=UDim2.new(0,RS(65,55),1,0)
+        whUrlLbl.Position=UDim2.new(0,18,0,0); whUrlLbl.BackgroundTransparency=1
+        whUrlLbl.Text="URL"; whUrlLbl.TextColor3=Theme.Text; whUrlLbl.TextSize=Theme.FontSize
+        whUrlLbl.Font=Theme.FontLight; whUrlLbl.TextXAlignment=Enum.TextXAlignment.Left
+        whUrlLbl.ZIndex=7; whUrlLbl.Parent=whUrlRow
+
+        local whInputW=RS(340,240)
+        local whInputBg=Instance.new("Frame"); whInputBg.Size=UDim2.new(0,whInputW,0,RS(30,34))
+        whInputBg.Position=UDim2.new(1,-(whInputW+RS(14,12)),0.5,-RS(15,17))
+        whInputBg.BackgroundColor3=Theme.InputBg; whInputBg.BorderSizePixel=0
+        whInputBg.ZIndex=8; whInputBg.Parent=whUrlRow; Corner(whInputBg,UDim.new(0,6))
+        local whGlow=Stroke(whInputBg,Color3.fromRGB(88,101,242),1.5,1)
+
+        local savedWhUrl=StateStore["_settings_webhook_url"] or ""
+        WebhookSystem:SetURL(savedWhUrl)
+
+        local whInput=Instance.new("TextBox"); whInput.Size=UDim2.new(1,-16,1,0)
+        whInput.Position=UDim2.new(0,8,0,0); whInput.BackgroundTransparency=1
+        whInput.Text=savedWhUrl
+        whInput.PlaceholderText="https://discord.com/api/webhooks/..."
+        whInput.PlaceholderColor3=Theme.TextDim
+        whInput.TextColor3=Theme.Text
+        whInput.TextSize=RS(11,12); whInput.Font=Theme.FontLight
+        whInput.ClearTextOnFocus=false
+        whInput.TextXAlignment=Enum.TextXAlignment.Left
+        whInput.ZIndex=9; whInput.Parent=whInputBg
+
+        -- Status dot for settings webhook
+        local whStatusDot=Instance.new("Frame")
+        whStatusDot.Size=UDim2.new(0,8,0,8)
+        whStatusDot.Position=UDim2.new(0,RS(92,74),0.5,-4)
+        whStatusDot.BackgroundColor3=savedWhUrl~="" and Theme.NotifSuccess or Theme.ToggleOff
+        whStatusDot.BorderSizePixel=0; whStatusDot.ZIndex=9; whStatusDot.Parent=whUrlRow
+        Corner(whStatusDot,UDim.new(1,0))
+
+        AddConnection(whInput.Focused:Connect(function()
+            Tween(whGlow,{Transparency=0.3},0.2)
+        end))
+        AddConnection(whInput.FocusLost:Connect(function()
+            Tween(whGlow,{Transparency=1},0.2)
+            local url=whInput.Text
+            StateStore["_settings_webhook_url"]=url
+            ConfigManager:Set("_settings_webhook_url",url)
+            WebhookSystem:SetURL(url)
+            Tween(whStatusDot,{
+                BackgroundColor3=url~="" and Theme.NotifSuccess or Theme.ToggleOff
+            },0.3)
+        end))
+        SetupHover(whUrlRow,RowColor(whUrlOrder),whUrlAb)
+
+        -- Test button row in Settings
+        local whTestOrder=NSO()
+        local whTestRow=Instance.new("Frame"); whTestRow.Size=UDim2.new(1,0,0,RH)
+        whTestRow.BackgroundColor3=RowColor(whTestOrder); whTestRow.BorderSizePixel=0
+        whTestRow.LayoutOrder=whTestOrder; whTestRow.ZIndex=6; whTestRow.ClipsDescendants=true
+        whTestRow.Parent=sp; Corner(whTestRow,Theme.CornerRadius)
+        local whTestAb=HoverAccent(whTestRow)
+
+        local whTestLbl=Instance.new("TextLabel"); whTestLbl.Size=UDim2.new(1,-220,1,0)
+        whTestLbl.Position=UDim2.new(0,18,0,0); whTestLbl.BackgroundTransparency=1
+        whTestLbl.Text="Test Webhook"; whTestLbl.TextColor3=Theme.Text
+        whTestLbl.TextSize=Theme.FontSize; whTestLbl.Font=Theme.FontLight
+        whTestLbl.TextXAlignment=Enum.TextXAlignment.Left
+        whTestLbl.ZIndex=7; whTestLbl.Parent=whTestRow
+
+        local whTestBtnW=RS(100,90)
+        local whTestBtnFrame=Instance.new("Frame")
+        whTestBtnFrame.Size=UDim2.new(0,whTestBtnW,0,RS(32,36))
+        whTestBtnFrame.Position=UDim2.new(1,-(whTestBtnW+RS(14,12)),0.5,-RS(16,18))
+        whTestBtnFrame.BackgroundTransparency=1; whTestBtnFrame.ZIndex=7
+        whTestBtnFrame.Parent=whTestRow
+
+        local whTestShadow=Instance.new("Frame"); whTestShadow.Size=UDim2.new(1,2,1,2)
+        whTestShadow.Position=UDim2.new(0,-1,0,2); whTestShadow.BackgroundColor3=Theme.Shadow
+        whTestShadow.BackgroundTransparency=0.82; whTestShadow.BorderSizePixel=0
+        whTestShadow.ZIndex=7; whTestShadow.Parent=whTestBtnFrame
+        Corner(whTestShadow,Theme.CornerRadius)
+
+        local whDiscordColor=Color3.fromRGB(88,101,242)
+        local whTestBtn=Instance.new("TextButton")
+        whTestBtn.Size=UDim2.new(1,-2,1,-2)
+        whTestBtn.Position=UDim2.new(0,1,0,0)
+        whTestBtn.BackgroundColor3=whDiscordColor
+        whTestBtn.Text="Send Test"; whTestBtn.TextColor3=Theme.Text
+        whTestBtn.TextSize=Theme.FontSizeSmall; whTestBtn.Font=Theme.Font
+        whTestBtn.BorderSizePixel=0; whTestBtn.AutoButtonColor=false
+        whTestBtn.ZIndex=8; whTestBtn.Parent=whTestBtnFrame
+        Corner(whTestBtn,Theme.CornerRadius)
+        local whTestGlow=Stroke(whTestBtn,whDiscordColor,1.5,0.6)
+
+        local whTestBusy=false
+        if not _isMobile then
+            AddConnection(whTestBtn.MouseEnter:Connect(function()
+                if not whTestBusy then
+                    Tween(whTestBtn,{BackgroundColor3=Color3.fromRGB(108,121,255)},0.15)
+                    Tween(whTestGlow,{Transparency=0.3},0.2)
+                end
+            end))
+            AddConnection(whTestBtn.MouseLeave:Connect(function()
+                if not whTestBusy then
+                    Tween(whTestBtn,{BackgroundColor3=whDiscordColor},0.15)
+                    Tween(whTestGlow,{Transparency=0.6},0.2)
+                end
+            end))
+        end
+
+        AddConnection(whTestBtn.MouseButton1Click:Connect(function()
+            if whTestBusy then return end
+            local url=whInput.Text
+            if url=="" then
+                GluttonyUI:Notify("Webhook","Please enter a webhook URL first.","warning",3)
+                Tween(whGlow,{Transparency=0.2,Color=Theme.NotifWarning},0.2)
+                task.delay(1.5,function()
+                    Tween(whGlow,{Transparency=1,Color=Color3.fromRGB(88,101,242)},0.3)
+                end)
+                return
+            end
+            whTestBusy=true
+            WebhookSystem:SetURL(url)
+            StateStore["_settings_webhook_url"]=url
+            ConfigManager:Set("_settings_webhook_url",url)
+
+            whTestBtn.Text="Sending..."
+            Tween(whTestBtn,{BackgroundColor3=Color3.fromRGB(100,100,120)},0.15)
+            Tween(whTestBtn,{Size=UDim2.new(1,-6,1,-4)},0.06)
+            task.delay(0.06,function()
+                Tween(whTestBtn,{Size=UDim2.new(1,-2,1,-2)},0.1,Enum.EasingStyle.Back)
+            end)
+
+            task.spawn(function()
+                local ok=WebhookSystem:Send({
+                    Title       = "🔗 "..WebhookSystem._config.Title.." — Webhook Test",
+                    Description = string.format(
+                        "Webhook is configured and working correctly!\n\n**Script:** %s\n**Status:** ✅ Active",
+                        WebhookSystem._config.Title
+                    ),
+                    Color       = WebhookSystem.RGBToDecimal(88,101,242),
+                    Fields      = {
+                        {name="⚙️ Version", value="`v2.3`", inline=true},
+                        {name="📡 Source",  value="`Settings Tab`", inline=true},
+                    },
+                })
+                if ok then
+                    whTestBtn.Text="✅ Sent!"
+                    Tween(whTestBtn,{BackgroundColor3=Theme.NotifSuccess},0.2)
+                    Tween(whStatusDot,{BackgroundColor3=Theme.NotifSuccess},0.3)
+                    GluttonyUI:Notify("Webhook","Test message sent successfully!","success",3)
+                else
+                    whTestBtn.Text="❌ Failed"
+                    Tween(whTestBtn,{BackgroundColor3=Theme.NotifError},0.2)
+                    Tween(whStatusDot,{BackgroundColor3=Theme.NotifError},0.3)
+                    GluttonyUI:Notify("Webhook","Failed to send. Check your URL.","error",4)
+                end
+                task.delay(2.5,function()
+                    if whTestBtn and whTestBtn.Parent then
+                        whTestBtn.Text="Send Test"
+                        Tween(whTestBtn,{BackgroundColor3=whDiscordColor},0.2)
+                        whTestBusy=false
+                    end
+                end)
+            end)
+        end))
+        SetupHover(whTestRow,RowColor(whTestOrder),whTestAb)
+
+        -- ── Spacer ──
+        local sp2=Instance.new("Frame"); sp2.Size=UDim2.new(1,0,0,16)
+        sp2.BackgroundTransparency=1; sp2.LayoutOrder=NSO(); sp2.Parent=sp
+
+        -- ── Community section ──
         local cl=Instance.new("TextLabel"); cl.Size=UDim2.new(1,0,0,30)
         cl.BackgroundTransparency=1; cl.Text="Community"
         cl.TextColor3=Theme.Accent; cl.TextSize=RS(15,16); cl.Font=Theme.Font
@@ -2827,237 +3532,170 @@ function GluttonyUI:CreateWindow(options)
         end))
         SetupHover(dr,RowColor(dro),da)
 
+        -- Version label
         local vl=Instance.new("TextLabel"); vl.Size=UDim2.new(0,40,0,16)
         vl.Position=UDim2.new(1,-50,1,-22); vl.BackgroundTransparency=1
-        vl.Text="v2.2"; vl.TextColor3=Theme.TextDim; vl.TextTransparency=0.5
+        vl.Text="v2.3"; vl.TextColor3=Theme.TextDim; vl.TextTransparency=0.5
         vl.TextSize=RS(11,12); vl.Font=Theme.FontLight
         vl.TextXAlignment=Enum.TextXAlignment.Right; vl.ZIndex=15; vl.Parent=inner
     end
     BuildSettingsTab()
 
--- ════════════════════════════════════════════════════════════════
--- TOGGLE BUTTON (sidebar tab, draggable) - FULLY FIXED
--- ════════════════════════════════════════════════════════════════
+    -- ════════════════════════════════════════════════════════════════
+    -- TOGGLE BUTTON (sidebar tab, draggable)
+    -- ════════════════════════════════════════════════════════════════
 
-local tbW2 = RS(36, 44)
-local tbH2 = RS(90, 100)
+    local tbW2=RS(36,44); local tbH2=RS(90,100)
+    local TB=Instance.new("Frame"); TB.Name="ToggleButton"
+    TB.Size=UDim2.new(0,tbW2,0,tbH2)
 
--- Track visibility state
-local tbDragging = false
+    local initX=_isMobile and (_screenSize.X-tbW2+4) or 8
+    local initY=math.floor(_screenSize.Y*0.5-tbH2/2)
+    TB.Position=UDim2.new(0,initX,0,initY)
+    TB.BackgroundColor3=Theme.Background; TB.BorderSizePixel=0
+    TB.ZIndex=100; TB.Parent=screenGui
+    Corner(TB,UDim.new(0,12))
 
-local TB = Instance.new("Frame")
-TB.Name = "ToggleButton"
-TB.Size = UDim2.new(0, tbW2, 0, tbH2)
+    local lc=Instance.new("Frame")
+    lc.Size=UDim2.new(0,12,1,0)
+    lc.Position=_isMobile and UDim2.new(1,-12,0,0) or UDim2.new(0,0,0,0)
+    lc.BackgroundColor3=Theme.Background; lc.BorderSizePixel=0
+    lc.ZIndex=101; lc.Parent=TB
 
--- Initial position (offset-based from the start)
-local initX = _isMobile and (_screenSize.X - tbW2 + 4) or 8
-local initY = math.floor(_screenSize.Y * 0.5 - tbH2 / 2)
-TB.Position = UDim2.new(0, initX, 0, initY)
+    local tab2=Instance.new("Frame"); tab2.Name="AccentBar"
+    tab2.AnchorPoint=Vector2.new(0.5,0.5)
+    tab2.Size=UDim2.new(0,3,0,35)
+    tab2.Position=_isMobile and UDim2.new(0,5,0.5,0) or UDim2.new(1,-5,0.5,0)
+    tab2.BackgroundColor3=Theme.Accent; tab2.BorderSizePixel=0
+    tab2.ZIndex=105; tab2.Parent=TB
+    Corner(tab2,UDim.new(1,0))
 
-TB.BackgroundColor3 = Theme.Background
-TB.BorderSizePixel = 0
-TB.ZIndex = 100
-TB.Parent = screenGui
-Corner(TB, UDim.new(0, 12))
+    local dc3=Instance.new("Frame"); dc3.Size=UDim2.new(0,12,0,50)
+    dc3.Position=UDim2.new(0.5,-6,0.5,-25); dc3.BackgroundTransparency=1
+    dc3.ZIndex=105; dc3.Parent=TB
 
--- Flat cover so corner only shows on one side
-local lc = Instance.new("Frame")
-if _isMobile then
-    lc.Size = UDim2.new(0, 12, 1, 0)
-    lc.Position = UDim2.new(1, -12, 0, 0)
-else
-    lc.Size = UDim2.new(0, 12, 1, 0)
-    lc.Position = UDim2.new(0, 0, 0, 0)
-end
-lc.BackgroundColor3 = Theme.Background
-lc.BorderSizePixel = 0
-lc.ZIndex = 101
-lc.Parent = TB
-
--- Accent bar
-local tab2 = Instance.new("Frame")
-tab2.Name = "AccentBar"
-tab2.AnchorPoint = Vector2.new(0.5, 0.5)
-tab2.Size = UDim2.new(0, 3, 0, 35)
-if _isMobile then
-    tab2.Position = UDim2.new(0, 5, 0.5, 0)
-else
-    tab2.Position = UDim2.new(1, -5, 0.5, 0)
-end
-tab2.BackgroundColor3 = Theme.Accent
-tab2.BorderSizePixel = 0
-tab2.ZIndex = 105
-tab2.Parent = TB
-Corner(tab2, UDim.new(1, 0))
-
--- Dot grid
-local dc3 = Instance.new("Frame")
-dc3.Size = UDim2.new(0, 12, 0, 50)
-dc3.Position = UDim2.new(0.5, -6, 0.5, -25)
-dc3.BackgroundTransparency = 1
-dc3.ZIndex = 105
-dc3.Parent = TB
-
-local dots2 = {}
-for i = 1, 5 do
-    local d = Instance.new("Frame")
-    d.Size = UDim2.new(0, RS(6, 8), 0, RS(6, 8))
-    d.Position = UDim2.new(0.5, -RS(3, 4), 0, (i - 1) * RS(11, 13))
-    d.BackgroundColor3 = Theme.TextDim
-    d.BackgroundTransparency = 0.3
-    d.BorderSizePixel = 0
-    d.ZIndex = 106
-    d.Parent = dc3
-    Corner(d, UDim.new(1, 0))
-    table.insert(dots2, d)
-end
-
--- Click button
-local tcb2 = Instance.new("TextButton")
-tcb2.Size = UDim2.new(1, 0, 1, 0)
-tcb2.BackgroundTransparency = 1
-tcb2.Text = ""
-tcb2.ZIndex = 110
-tcb2.Parent = TB
-
--- Pulse animation
-local pr = true
-task.spawn(function()
-    while pr do
-        if not TB or not TB.Parent then break end
-        Tween(tab2, {BackgroundTransparency = 0.3}, 1.2, Enum.EasingStyle.Sine)
-        task.wait(1.2)
-        if not TB or not TB.Parent then break end
-        Tween(tab2, {BackgroundTransparency = 0}, 1.2, Enum.EasingStyle.Sine)
-        task.wait(1.2)
-    end
-end)
-
--- Drag logic (fully offset-based)
-local tbDragActive = false
-local tbMoved = false
-local tbClickDebounce = false
-local tbDragStartY = 0
-local tbStartOffsetX = 0
-local tbStartOffsetY = 0
-
-AddConnection(tcb2.InputBegan:Connect(function(input)
-    if input.UserInputType ~= Enum.UserInputType.MouseButton1
-    and input.UserInputType ~= Enum.UserInputType.Touch then return end
-    if tbClickDebounce then return end
-
-    tbDragActive = true
-    tbMoved = false
-    tbDragStartY = input.Position.Y
-    -- Capture current absolute offsets
-    tbStartOffsetX = TB.AbsolutePosition.X
-    tbStartOffsetY = TB.AbsolutePosition.Y
-end))
-
-AddConnection(UserInputService.InputChanged:Connect(function(input)
-    if not tbDragActive then return end
-    if input.UserInputType ~= Enum.UserInputType.MouseMovement
-    and input.UserInputType ~= Enum.UserInputType.Touch then return end
-
-    local dy = input.Position.Y - tbDragStartY
-
-    if math.abs(dy) > 6 then
-        tbMoved = true
+    local dots2={}
+    for i=1,5 do
+        local d=Instance.new("Frame")
+        d.Size=UDim2.new(0,RS(6,8),0,RS(6,8))
+        d.Position=UDim2.new(0.5,-RS(3,4),0,(i-1)*RS(11,13))
+        d.BackgroundColor3=Theme.TextDim; d.BackgroundTransparency=0.3
+        d.BorderSizePixel=0; d.ZIndex=106; d.Parent=dc3
+        Corner(d,UDim.new(1,0)); table.insert(dots2,d)
     end
 
-    if tbMoved then
-        local screenY = workspace.CurrentCamera.ViewportSize.Y
-        local newY = math.clamp(tbStartOffsetY + dy, 0, screenY - TB.AbsoluteSize.Y)
-        -- Keep X fixed, only move Y
-        TB.Position = UDim2.new(0, tbStartOffsetX, 0, newY)
-    end
-end))
+    local tcb2=Instance.new("TextButton"); tcb2.Size=UDim2.new(1,0,1,0)
+    tcb2.BackgroundTransparency=1; tcb2.Text=""; tcb2.ZIndex=110; tcb2.Parent=TB
 
-AddConnection(UserInputService.InputEnded:Connect(function(input)
-    if input.UserInputType ~= Enum.UserInputType.MouseButton1
-    and input.UserInputType ~= Enum.UserInputType.Touch then return end
-    if not tbDragActive then return end
-
-    tbDragActive = false
-    local wasMoved = tbMoved
-    tbMoved = false
-
-    if not wasMoved and not tbClickDebounce then
-        tbClickDebounce = true
-
-        if guiVisible then
-            -- Hide
-            guiVisible = false
-            minimized = true
-            Tween(main, {Size = UDim2.new(0, WW, 0, 0)}, 0.3)
-            Tween(tab2, {Size = UDim2.new(0, 3, 0, 35)}, 0.25)
-            task.delay(0.3, function()
-                if main and main.Parent then
-                    main.Visible = false
-                end
-                tbClickDebounce = false
-            end)
-        else
-            -- Show
-            guiVisible = true
-            minimized = false
-            main.Visible = true
-            main.Size = UDim2.new(0, WW, 0, 0)
-            Tween(main, {Size = UDim2.new(0, WW, 0, WH)}, 0.35, Enum.EasingStyle.Back)
-            Tween(tab2, {Size = UDim2.new(0, 3, 0, 55)}, 0.25)
-            task.delay(0.35, function()
-                tbClickDebounce = false
-            end)
+    -- Pulse animation
+    local pr=true
+    task.spawn(function()
+        while pr do
+            if not TB or not TB.Parent then break end
+            Tween(tab2,{BackgroundTransparency=0.3},1.2,Enum.EasingStyle.Sine)
+            task.wait(1.2)
+            if not TB or not TB.Parent then break end
+            Tween(tab2,{BackgroundTransparency=0},1.2,Enum.EasingStyle.Sine)
+            task.wait(1.2)
         end
-    else
-        tbMoved = false
-    end
-end))
+    end)
 
--- Hover effects (PC only)
-if not _isMobile then
-    AddConnection(tcb2.MouseEnter:Connect(function()
-        Tween(TB, {BackgroundColor3 = Theme.Hover}, 0.2)
-        Tween(lc, {BackgroundColor3 = Theme.Hover}, 0.2)
-        for i2, d in ipairs(dots2) do
-            task.delay(i2 * 0.04, function()
-                if d and d.Parent then
-                    Tween(d, {
-                        BackgroundColor3 = Theme.Accent,
-                        BackgroundTransparency = 0,
-                        Size = UDim2.new(0, 8, 0, 8),
-                        Position = UDim2.new(0.5, -4, 0, (i2 - 1) * 11 - 1)
-                    }, 0.15)
-                end
-            end)
+    -- Drag logic
+    local tbDragActive=false; local tbMoved=false
+    local tbClickDebounce=false; local tbDragStartY=0
+    local tbStartOffsetX=0; local tbStartOffsetY=0
+
+    AddConnection(tcb2.InputBegan:Connect(function(input)
+        if input.UserInputType~=Enum.UserInputType.MouseButton1
+        and input.UserInputType~=Enum.UserInputType.Touch then return end
+        if tbClickDebounce then return end
+        tbDragActive=true; tbMoved=false
+        tbDragStartY=input.Position.Y
+        tbStartOffsetX=TB.AbsolutePosition.X
+        tbStartOffsetY=TB.AbsolutePosition.Y
+    end))
+
+    AddConnection(UserInputService.InputChanged:Connect(function(input)
+        if not tbDragActive then return end
+        if input.UserInputType~=Enum.UserInputType.MouseMovement
+        and input.UserInputType~=Enum.UserInputType.Touch then return end
+        local dy=input.Position.Y-tbDragStartY
+        if math.abs(dy)>6 then tbMoved=true end
+        if tbMoved then
+            local screenY=workspace.CurrentCamera.ViewportSize.Y
+            local newY=math.clamp(tbStartOffsetY+dy,0,screenY-TB.AbsoluteSize.Y)
+            TB.Position=UDim2.new(0,tbStartOffsetX,0,newY)
         end
     end))
 
-    AddConnection(tcb2.MouseLeave:Connect(function()
-        Tween(TB, {BackgroundColor3 = Theme.Background}, 0.2)
-        Tween(lc, {BackgroundColor3 = Theme.Background}, 0.2)
-        for i2, d in ipairs(dots2) do
-            task.delay(i2 * 0.04, function()
-                if d and d.Parent then
-                    Tween(d, {
-                        BackgroundColor3 = Theme.TextDim,
-                        BackgroundTransparency = 0.3,
-                        Size = UDim2.new(0, 6, 0, 6),
-                        Position = UDim2.new(0.5, -3, 0, (i2 - 1) * 11)
-                    }, 0.15)
-                end
-            end)
+    AddConnection(UserInputService.InputEnded:Connect(function(input)
+        if input.UserInputType~=Enum.UserInputType.MouseButton1
+        and input.UserInputType~=Enum.UserInputType.Touch then return end
+        if not tbDragActive then return end
+        tbDragActive=false
+        local wasMoved=tbMoved; tbMoved=false
+        if not wasMoved and not tbClickDebounce then
+            tbClickDebounce=true
+            if guiVisible then
+                guiVisible=false; minimized=true
+                Tween(main,{Size=UDim2.new(0,WW,0,0)},0.3)
+                Tween(tab2,{Size=UDim2.new(0,3,0,35)},0.25)
+                task.delay(0.3,function()
+                    if main and main.Parent then main.Visible=false end
+                    tbClickDebounce=false
+                end)
+            else
+                guiVisible=true; minimized=false
+                main.Visible=true; main.Size=UDim2.new(0,WW,0,0)
+                Tween(main,{Size=UDim2.new(0,WW,0,WH)},0.35,Enum.EasingStyle.Back)
+                Tween(tab2,{Size=UDim2.new(0,3,0,55)},0.25)
+                task.delay(0.35,function() tbClickDebounce=false end)
+            end
         end
     end))
-end
 
-local od = Window.Destroy
-function Window:Destroy()
-    pr = false
-    od(self)
-end
+    -- Hover effects (PC only)
+    if not _isMobile then
+        AddConnection(tcb2.MouseEnter:Connect(function()
+            Tween(TB,{BackgroundColor3=Theme.Hover},0.2)
+            Tween(lc,{BackgroundColor3=Theme.Hover},0.2)
+            for i2,d in ipairs(dots2) do
+                task.delay(i2*0.04,function()
+                    if d and d.Parent then
+                        Tween(d,{
+                            BackgroundColor3=Theme.Accent,
+                            BackgroundTransparency=0,
+                            Size=UDim2.new(0,8,0,8),
+                            Position=UDim2.new(0.5,-4,0,(i2-1)*11-1)
+                        },0.15)
+                    end
+                end)
+            end
+        end))
+        AddConnection(tcb2.MouseLeave:Connect(function()
+            Tween(TB,{BackgroundColor3=Theme.Background},0.2)
+            Tween(lc,{BackgroundColor3=Theme.Background},0.2)
+            for i2,d in ipairs(dots2) do
+                task.delay(i2*0.04,function()
+                    if d and d.Parent then
+                        Tween(d,{
+                            BackgroundColor3=Theme.TextDim,
+                            BackgroundTransparency=0.3,
+                            Size=UDim2.new(0,6,0,6),
+                            Position=UDim2.new(0.5,-3,0,(i2-1)*11)
+                        },0.15)
+                    end
+                end)
+            end
+        end))
+    end
 
-return Window
+    local od=Window.Destroy
+    function Window:Destroy()
+        pr=false; od(self)
+    end
+
+    return Window
 end -- end CreateWindow
 
 return GluttonyUI
