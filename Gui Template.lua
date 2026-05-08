@@ -2868,11 +2868,12 @@ function GluttonyUI:CreateWindow(options)
             urlInputBg.Position = UDim2.new(1,-(urlInputW+RS(14,12)),0.5,-RS(15,17))
             urlInputBg.BackgroundColor3 = Theme.InputBg
             urlInputBg.BorderSizePixel = 0; urlInputBg.ZIndex = 8; urlInputBg.Parent = urlRow
+            urlInputBg.ClipsDescendants = true
             Corner(urlInputBg, UDim.new(0,6))
             local urlGlow = Stroke(urlInputBg, Color3.fromRGB(88,101,242), 1.5, 1)
 
             local urlInput = Instance.new("TextBox")
-            urlInput.Size = UDim2.new(1,-16,1,0)
+            urlInput.Size = UDim2.new(1,-28,1,0)
             urlInput.Position = UDim2.new(0,8,0,0)
             urlInput.BackgroundTransparency = 1
             urlInput.Text = savedUrl
@@ -2882,14 +2883,16 @@ function GluttonyUI:CreateWindow(options)
             urlInput.TextSize = RS(11,12); urlInput.Font = Theme.FontLight
             urlInput.ClearTextOnFocus = false
             urlInput.TextXAlignment = Enum.TextXAlignment.Left
+            urlInput.ClipsDescendants = true
+            urlInput.TextTruncate = Enum.TextTruncate.AtEnd
             urlInput.ZIndex = 9; urlInput.Parent = urlInputBg
 
-            -- Status dot
+            -- Status dot (positioned at the right end of the input box)
             local statusDot = Instance.new("Frame")
-            statusDot.Size = UDim2.new(0,8,0,8)
-            statusDot.Position = UDim2.new(0,RS(92,74),0.5,-4)
+            statusDot.Size = UDim2.new(0,10,0,10)
+            statusDot.Position = UDim2.new(1,-(RS(14,12)+6),0.5,-5)
             statusDot.BackgroundColor3 = savedUrl ~= "" and Theme.NotifSuccess or Theme.ToggleOff
-            statusDot.BorderSizePixel = 0; statusDot.ZIndex = 9; statusDot.Parent = urlRow
+            statusDot.BorderSizePixel = 0; statusDot.ZIndex = 10; statusDot.Parent = urlInputBg
             Corner(statusDot, UDim.new(1,0))
 
             AddConnection(urlInput.Focused:Connect(function()
