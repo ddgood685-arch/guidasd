@@ -132,13 +132,6 @@ local function GetPlayerFields()
         inline = true
     })
 
-    -- Server
-    table.insert(fields, {
-        name  = "🌐 Server",
-        value = string.format("`%s`", game.JobId ~= "" and game.JobId:sub(1,8).."..." or "Private"),
-        inline = true
-    })
-
     return fields
 end
 
