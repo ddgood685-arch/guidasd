@@ -2770,176 +2770,211 @@ function GluttonyUI:CreateWindow(options)
             }
         end
 
-                -- ════════════════════════════════════════════════════════════════
-        -- WEBHOOK INPUT (clean — no hint, no section header)
+        -- ════════════════════════════════════════════════════════════════
+        -- WEBHOOK INPUT (new Tab element)
         -- ════════════════════════════════════════════════════════════════
         function Tab:AddWebhookInput(opts)
             opts = opts or {}
-            local labelText   = opts.Label       or "Webhook URL"
-            local placeholder = opts.Placeholder or "https://discord.com/api/webhooks/..."
-            local configKey   = opts.ConfigKey   or "_webhook_url"
-            local onSave      = opts.OnSave
-            local testTitle   = opts.TestTitle   or "🔗 Webhook Test"
-            local testDesc    = opts.TestDescription or "This is a test message from **Gluttony Core**.\nWebhook is working correctly! ✅"
-            local testColor   = opts.TestColor   or WebhookSystem._config.Color
-            local testFields  = opts.TestFields  or {}
+            local order = NextOrder()
+            local labelText  = opts.Label       or "Webhook URL"
+            local placeholder= opts.Placeholder or "https://discord.com/api/webhooks/..."
+            local configKey  = opts.ConfigKey   or "_webhook_url"
+            local onSave     = opts.OnSave      -- optional callback(url)
+            local testTitle  = opts.TestTitle   or "🔗 Webhook Test"
+            local testDesc   = opts.TestDescription or "This is a test message from **Gluttony Core**.\nWebhook is working correctly! ✅"
+            local testColor  = opts.TestColor   or WebhookSystem._config.Color
+            local testFields = opts.TestFields  or {}
 
+            -- Load saved URL
             local savedUrl = StateStore[configKey] or ""
             WebhookSystem:SetURL(savedUrl)
+
+            -- Section header
+            local secLabel = Instance.new("TextLabel")
+            secLabel.Size = UDim2.new(1,0,0,28)
+            secLabel.BackgroundTransparency = 1
+            secLabel.Text = "🔗 " .. labelText
+            secLabel.TextColor3 = Theme.Accent
+            secLabel.TextSize = RS(15,16)
+            secLabel.Font = Theme.Font
+            secLabel.TextXAlignment = Enum.TextXAlignment.Left
+            secLabel.LayoutOrder = order
+            secLabel.ZIndex = 7
+            secLabel.Parent = page
+
+            -- Info hint
+            local hintOrder = NextOrder()
+            local hintH = RS(54,62)
+            local hintFrame = Instance.new("Frame")
+            hintFrame.Size = UDim2.new(1,0,0,hintH)
+            hintFrame.BackgroundColor3 = Color3.fromRGB(28,32,50)
+            hintFrame.BorderSizePixel = 0
+            hintFrame.LayoutOrder = hintOrder
+            hintFrame.ZIndex = 6
+            hintFrame.Parent = page
+            Corner(hintFrame, Theme.CornerRadius)
+            Stroke(hintFrame, Color3.fromRGB(88,101,242), 1, 0.5)
+
+            local discordBar = Instance.new("Frame")
+            discordBar.Size = UDim2.new(0,4,1,-16)
+            discordBar.Position = UDim2.new(0,8,0,8)
+            discordBar.BackgroundColor3 = Color3.fromRGB(88,101,242)
+            discordBar.BorderSizePixel = 0; discordBar.ZIndex = 7; discordBar.Parent = hintFrame
+            Corner(discordBar, UDim.new(1,0))
+
+            local discordIcon = Instance.new("TextLabel")
+            discordIcon.Size = UDim2.new(0,28,0,28)
+            discordIcon.Position = UDim2.new(0,18,0.5,-14)
+            discordIcon.BackgroundTransparency = 1
+            discordIcon.Text = "🔗"; discordIcon.TextSize = 18
+            discordIcon.ZIndex = 8; discordIcon.Parent = hintFrame
+
+            local hintText = Instance.new("TextLabel")
+            hintText.Size = UDim2.new(1,-58,1,-16)
+            hintText.Position = UDim2.new(0,50,0,8)
+            hintText.BackgroundTransparency = 1
+            hintText.Text = "Paste your Discord webhook URL below. Embeds will include player info, game, and server."
+            hintText.TextColor3 = Color3.fromRGB(180,190,255)
+            hintText.TextSize = RS(12,13)
+            hintText.Font = Theme.FontLight
+            hintText.TextXAlignment = Enum.TextXAlignment.Left
+            hintText.TextWrapped = true; hintText.ZIndex = 7; hintText.Parent = hintFrame
 
             -- URL Input row
             local urlOrder = NextOrder()
             local urlRow = Instance.new("Frame")
-            urlRow.Size = UDim2.new(1, 0, 0, RH)
+            urlRow.Size = UDim2.new(1,0,0,RH)
             urlRow.BackgroundColor3 = RowColor(urlOrder)
             urlRow.BorderSizePixel = 0
             urlRow.LayoutOrder = urlOrder
-            urlRow.ZIndex = 6
-            urlRow.ClipsDescendants = true
+            urlRow.ZIndex = 6; urlRow.ClipsDescendants = true
             urlRow.Parent = page
             Corner(urlRow, Theme.CornerRadius)
             local urlAb = HoverAccent(urlRow)
 
             local urlLbl = Instance.new("TextLabel")
-            urlLbl.Size = UDim2.new(0, RS(65, 55), 1, 0)
-            urlLbl.Position = UDim2.new(0, 18, 0, 0)
+            urlLbl.Size = UDim2.new(0,RS(65,55),1,0)
+            urlLbl.Position = UDim2.new(0,18,0,0)
             urlLbl.BackgroundTransparency = 1
-            urlLbl.Text = labelText
-            urlLbl.TextColor3 = Theme.Text
-            urlLbl.TextSize = Theme.FontSize
+            urlLbl.Text = "URL"
+            urlLbl.TextColor3 = Theme.Text; urlLbl.TextSize = Theme.FontSize
             urlLbl.Font = Theme.FontLight
             urlLbl.TextXAlignment = Enum.TextXAlignment.Left
-            urlLbl.ZIndex = 7
-            urlLbl.Parent = urlRow
+            urlLbl.ZIndex = 7; urlLbl.Parent = urlRow
 
-            local urlInputW = RS(340, 260)
+            local urlInputW = RS(340,260)
             local urlInputBg = Instance.new("Frame")
-            urlInputBg.Size = UDim2.new(0, urlInputW, 0, RS(30, 34))
-            urlInputBg.Position = UDim2.new(1, -(urlInputW + RS(14, 12)), 0.5, -RS(15, 17))
+            urlInputBg.Size = UDim2.new(0,urlInputW,0,RS(30,34))
+            urlInputBg.Position = UDim2.new(1,-(urlInputW+RS(14,12)),0.5,-RS(15,17))
             urlInputBg.BackgroundColor3 = Theme.InputBg
-            urlInputBg.BorderSizePixel = 0
-            urlInputBg.ZIndex = 8
-            urlInputBg.Parent = urlRow
+            urlInputBg.BorderSizePixel = 0; urlInputBg.ZIndex = 8; urlInputBg.Parent = urlRow
             urlInputBg.ClipsDescendants = true
-            Corner(urlInputBg, UDim.new(0, 6))
-            local urlGlow = Stroke(urlInputBg, Color3.fromRGB(88, 101, 242), 1.5, 1)
+            Corner(urlInputBg, UDim.new(0,6))
+            local urlGlow = Stroke(urlInputBg, Color3.fromRGB(88,101,242), 1.5, 1)
 
             local urlInput = Instance.new("TextBox")
-            urlInput.Size = UDim2.new(1, -28, 1, 0)
-            urlInput.Position = UDim2.new(0, 8, 0, 0)
+            urlInput.Size = UDim2.new(1,-28,1,0)
+            urlInput.Position = UDim2.new(0,8,0,0)
             urlInput.BackgroundTransparency = 1
             urlInput.Text = savedUrl
             urlInput.PlaceholderText = placeholder
             urlInput.PlaceholderColor3 = Theme.TextDim
             urlInput.TextColor3 = Theme.Text
-            urlInput.TextSize = RS(11, 12)
-            urlInput.Font = Theme.FontLight
+            urlInput.TextSize = RS(11,12); urlInput.Font = Theme.FontLight
             urlInput.ClearTextOnFocus = false
             urlInput.TextXAlignment = Enum.TextXAlignment.Left
             urlInput.ClipsDescendants = true
             urlInput.TextTruncate = Enum.TextTruncate.AtEnd
-            urlInput.ZIndex = 9
-            urlInput.Parent = urlInputBg
+            urlInput.ZIndex = 9; urlInput.Parent = urlInputBg
 
+            -- Status dot (positioned at the right end of the input box)
             local statusDot = Instance.new("Frame")
-            statusDot.Size = UDim2.new(0, 10, 0, 10)
-            statusDot.Position = UDim2.new(1, -(RS(14, 12) + 6), 0.5, -5)
+            statusDot.Size = UDim2.new(0,10,0,10)
+            statusDot.Position = UDim2.new(1,-(RS(14,12)+6),0.5,-5)
             statusDot.BackgroundColor3 = savedUrl ~= "" and Theme.NotifSuccess or Theme.ToggleOff
-            statusDot.BorderSizePixel = 0
-            statusDot.ZIndex = 10
-            statusDot.Parent = urlInputBg
-            Corner(statusDot, UDim.new(1, 0))
+            statusDot.BorderSizePixel = 0; statusDot.ZIndex = 10; statusDot.Parent = urlInputBg
+            Corner(statusDot, UDim.new(1,0))
 
             AddConnection(urlInput.Focused:Connect(function()
-                Tween(urlGlow, {Transparency = 0.3}, 0.2)
+                Tween(urlGlow,{Transparency=0.3},0.2)
             end))
-
             AddConnection(urlInput.FocusLost:Connect(function()
-                Tween(urlGlow, {Transparency = 1}, 0.2)
+                Tween(urlGlow,{Transparency=1},0.2)
                 local url = urlInput.Text
                 StateStore[configKey] = url
                 ConfigManager:Set(configKey, url)
                 WebhookSystem:SetURL(url)
-                Tween(statusDot, {
+                Tween(statusDot,{
                     BackgroundColor3 = url ~= "" and Theme.NotifSuccess or Theme.ToggleOff
-                }, 0.3)
+                },0.3)
                 if onSave then task.spawn(onSave, url) end
             end))
-
             SetupHover(urlRow, RowColor(urlOrder), urlAb)
 
-            -- Test button row
+            -- Save & Test button row
             local btnRowOrder = NextOrder()
             local btnRow = Instance.new("Frame")
-            btnRow.Size = UDim2.new(1, 0, 0, RH)
+            btnRow.Size = UDim2.new(1,0,0,RH)
             btnRow.BackgroundColor3 = RowColor(btnRowOrder)
             btnRow.BorderSizePixel = 0
             btnRow.LayoutOrder = btnRowOrder
-            btnRow.ZIndex = 6
-            btnRow.ClipsDescendants = true
+            btnRow.ZIndex = 6; btnRow.ClipsDescendants = true
             btnRow.Parent = page
             Corner(btnRow, Theme.CornerRadius)
             local btnAb = HoverAccent(btnRow)
 
             local btnLbl = Instance.new("TextLabel")
-            btnLbl.Size = UDim2.new(1, -220, 1, 0)
-            btnLbl.Position = UDim2.new(0, 18, 0, 0)
+            btnLbl.Size = UDim2.new(1,-220,1,0)
+            btnLbl.Position = UDim2.new(0,18,0,0)
             btnLbl.BackgroundTransparency = 1
             btnLbl.Text = "Test Webhook"
-            btnLbl.TextColor3 = Theme.Text
-            btnLbl.TextSize = Theme.FontSize
+            btnLbl.TextColor3 = Theme.Text; btnLbl.TextSize = Theme.FontSize
             btnLbl.Font = Theme.FontLight
             btnLbl.TextXAlignment = Enum.TextXAlignment.Left
-            btnLbl.ZIndex = 7
-            btnLbl.Parent = btnRow
+            btnLbl.ZIndex = 7; btnLbl.Parent = btnRow
 
-            local testBtnW = RS(100, 90)
+            -- Test button (Discord blue)
+            local testBtnW = RS(100,90)
             local testBtnFrame = Instance.new("Frame")
-            testBtnFrame.Size = UDim2.new(0, testBtnW, 0, RS(32, 36))
-            testBtnFrame.Position = UDim2.new(1, -(testBtnW + RS(14, 12)), 0.5, -RS(16, 18))
+            testBtnFrame.Size = UDim2.new(0,testBtnW,0,RS(32,36))
+            testBtnFrame.Position = UDim2.new(1,-(testBtnW+RS(14,12)),0.5,-RS(16,18))
             testBtnFrame.BackgroundTransparency = 1
-            testBtnFrame.ZIndex = 7
-            testBtnFrame.Parent = btnRow
+            testBtnFrame.ZIndex = 7; testBtnFrame.Parent = btnRow
 
             local testBtnShadow = Instance.new("Frame")
-            testBtnShadow.Size = UDim2.new(1, 2, 1, 2)
-            testBtnShadow.Position = UDim2.new(0, -1, 0, 2)
+            testBtnShadow.Size = UDim2.new(1,2,1,2)
+            testBtnShadow.Position = UDim2.new(0,-1,0,2)
             testBtnShadow.BackgroundColor3 = Theme.Shadow
             testBtnShadow.BackgroundTransparency = 0.82
-            testBtnShadow.BorderSizePixel = 0
-            testBtnShadow.ZIndex = 7
+            testBtnShadow.BorderSizePixel = 0; testBtnShadow.ZIndex = 7
             testBtnShadow.Parent = testBtnFrame
             Corner(testBtnShadow, Theme.CornerRadius)
 
-            local discordColor = Color3.fromRGB(88, 101, 242)
+            local discordColor = Color3.fromRGB(88,101,242)
             local testBtn = Instance.new("TextButton")
-            testBtn.Size = UDim2.new(1, -2, 1, -2)
-            testBtn.Position = UDim2.new(0, 1, 0, 0)
+            testBtn.Size = UDim2.new(1,-2,1,-2)
+            testBtn.Position = UDim2.new(0,1,0,0)
             testBtn.BackgroundColor3 = discordColor
             testBtn.Text = "Send Test"
             testBtn.TextColor3 = Theme.Text
-            testBtn.TextSize = Theme.FontSizeSmall
-            testBtn.Font = Theme.Font
-            testBtn.BorderSizePixel = 0
-            testBtn.AutoButtonColor = false
-            testBtn.ZIndex = 8
-            testBtn.Parent = testBtnFrame
+            testBtn.TextSize = Theme.FontSizeSmall; testBtn.Font = Theme.Font
+            testBtn.BorderSizePixel = 0; testBtn.AutoButtonColor = false
+            testBtn.ZIndex = 8; testBtn.Parent = testBtnFrame
             Corner(testBtn, Theme.CornerRadius)
             local testGlow = Stroke(testBtn, discordColor, 1.5, 0.6)
 
             local testBusy = false
-
             if not _isMobile then
                 AddConnection(testBtn.MouseEnter:Connect(function()
                     if not testBusy then
-                        Tween(testBtn, {BackgroundColor3 = Color3.fromRGB(108, 121, 255)}, 0.15)
-                        Tween(testGlow, {Transparency = 0.3}, 0.2)
+                        Tween(testBtn,{BackgroundColor3=Color3.fromRGB(108,121,255)},0.15)
+                        Tween(testGlow,{Transparency=0.3},0.2)
                     end
                 end))
                 AddConnection(testBtn.MouseLeave:Connect(function()
                     if not testBusy then
-                        Tween(testBtn, {BackgroundColor3 = discordColor}, 0.15)
-                        Tween(testGlow, {Transparency = 0.6}, 0.2)
+                        Tween(testBtn,{BackgroundColor3=discordColor},0.15)
+                        Tween(testGlow,{Transparency=0.6},0.2)
                     end
                 end))
             end
@@ -2949,23 +2984,24 @@ function GluttonyUI:CreateWindow(options)
                 local url = urlInput.Text
                 if url == "" then
                     GluttonyUI:Notify("Webhook", "Please enter a webhook URL first.", "warning", 3)
-                    Tween(urlGlow, {Transparency = 0.2, Color = Theme.NotifWarning}, 0.2)
-                    task.delay(1.5, function()
-                        Tween(urlGlow, {Transparency = 1, Color = Color3.fromRGB(88, 101, 242)}, 0.3)
+                    Tween(urlGlow,{Transparency=0.2,Color=Theme.NotifWarning},0.2)
+                    task.delay(1.5,function()
+                        Tween(urlGlow,{Transparency=1,Color=Color3.fromRGB(88,101,242)},0.3)
                     end)
                     return
                 end
                 testBusy = true
-
+                -- Save URL before test
                 WebhookSystem:SetURL(url)
                 StateStore[configKey] = url
                 ConfigManager:Set(configKey, url)
 
+                -- Animate button
                 testBtn.Text = "Sending..."
-                Tween(testBtn, {BackgroundColor3 = Color3.fromRGB(100, 100, 120)}, 0.15)
-                Tween(testBtn, {Size = UDim2.new(1, -6, 1, -4)}, 0.06)
-                task.delay(0.06, function()
-                    Tween(testBtn, {Size = UDim2.new(1, -2, 1, -2)}, 0.1, Enum.EasingStyle.Back)
+                Tween(testBtn,{BackgroundColor3=Color3.fromRGB(100,100,120)},0.15)
+                Tween(testBtn,{Size=UDim2.new(1,-6,1,-4)},0.06)
+                task.delay(0.06,function()
+                    Tween(testBtn,{Size=UDim2.new(1,-2,1,-2)},0.1,Enum.EasingStyle.Back)
                 end)
 
                 task.spawn(function()
@@ -2978,44 +3014,40 @@ function GluttonyUI:CreateWindow(options)
 
                     if ok then
                         testBtn.Text = "✅ Sent!"
-                        Tween(testBtn, {BackgroundColor3 = Theme.NotifSuccess}, 0.2)
-                        Tween(statusDot, {BackgroundColor3 = Theme.NotifSuccess}, 0.3)
+                        Tween(testBtn,{BackgroundColor3=Theme.NotifSuccess},0.2)
+                        Tween(statusDot,{BackgroundColor3=Theme.NotifSuccess},0.3)
                         GluttonyUI:Notify("Webhook", "Test message sent successfully!", "success", 3)
                     else
                         testBtn.Text = "❌ Failed"
-                        Tween(testBtn, {BackgroundColor3 = Theme.NotifError}, 0.2)
-                        Tween(statusDot, {BackgroundColor3 = Theme.NotifError}, 0.3)
+                        Tween(testBtn,{BackgroundColor3=Theme.NotifError},0.2)
+                        Tween(statusDot,{BackgroundColor3=Theme.NotifError},0.3)
                         GluttonyUI:Notify("Webhook", "Failed to send. Check your URL.", "error", 4)
                     end
 
                     task.delay(2.5, function()
                         if testBtn and testBtn.Parent then
                             testBtn.Text = "Send Test"
-                            Tween(testBtn, {BackgroundColor3 = discordColor}, 0.2)
+                            Tween(testBtn,{BackgroundColor3=discordColor},0.2)
                             testBusy = false
                         end
                     end)
                 end)
             end))
-
             SetupHover(btnRow, RowColor(btnRowOrder), btnAb)
 
+            -- Return controls
             return {
-                GetURL = function()
-                    return urlInput.Text
-                end,
+                GetURL = function() return urlInput.Text end,
                 SetURL = function(_, url)
                     urlInput.Text = url
                     StateStore[configKey] = url
                     ConfigManager:Set(configKey, url)
                     WebhookSystem:SetURL(url)
-                    Tween(statusDot, {
+                    Tween(statusDot,{
                         BackgroundColor3 = url ~= "" and Theme.NotifSuccess or Theme.ToggleOff
-                    }, 0.3)
+                    },0.3)
                 end,
-                Send = function(_, sendOpts)
-                    return WebhookSystem:Send(sendOpts)
-                end,
+                Send = function(_, sendOpts) return WebhookSystem:Send(sendOpts) end,
             }
         end
 
