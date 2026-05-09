@@ -1171,11 +1171,16 @@ function GluttonyUI:CreateWindow(options)
 
             local function StartLoop()
                 if state and callback then
-                    local safeInterval=math.max(1,math.floor(tonumber(tostring(intervalValue)) or 1))
-                    ThreadManager:Start(labelText,safeInterval,function() callback() end)
+                    local intervalArg
+                    if typeof(intervalDefault) == "function" then
+                        -- Pass the function through so ThreadManager calls it each loop
+                        intervalArg = intervalDefault
+                    else
+                        intervalArg = math.max(1, math.floor(tonumber(tostring(intervalValue)) or 1))
+                    end
+                    ThreadManager:Start(labelText, intervalArg, function() callback() end)
                 end
             end
-
             AddConnection(input.FocusLost:Connect(function()
                 local val=math.floor(tonumber(tostring(input.Text)) or 0)
                 if val and val>=1 then
