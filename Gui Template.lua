@@ -433,6 +433,12 @@ end
 
 function ConfigManager:Set(n,v) StateStore[n]=v; self:QueueSave() end
 function ConfigManager:RegisterUpdater(n,f) self._uiUpdaters[n]=f end
+
+-- Override SetValue AFTER ConfigManager exists so it can save to disk
+function GluttonyUI:SetValue(n,v)
+    StateStore[n] = v
+    ConfigManager:QueueSave()
+end
 function ConfigManager:ApplyToUI()
     for n,u in pairs(self._uiUpdaters) do
         local s=StateStore[n]; if s~=nil then pcall(u,s) end
