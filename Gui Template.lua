@@ -33,6 +33,37 @@ local function RS(pcValue, mobileValue)
 end
 
 -- ════════════════════════════════════════════════════════════════
+-- ICON BASE URL
+-- ════════════════════════════════════════════════════════════════
+local ICON_BASE = "https://raw.githubusercontent.com/ddgood685-arch/guidasd/refs/heads/main/icons/"
+
+local function LoadIconImage(img, iconUrl)
+    task.spawn(function()
+        pcall(function()
+            local fileName = "gluttony_icon_" .. iconUrl:match("([^/]+)$")
+            if isfile and isfile(fileName) then
+                img.Image = getcustomasset(fileName)
+                return
+            end
+            local resp = nil
+            if syn and syn.request then
+                resp = syn.request({Url=iconUrl, Method="GET"})
+            elseif http_request then
+                resp = http_request({Url=iconUrl, Method="GET"})
+            elseif request then
+                resp = request({Url=iconUrl, Method="GET"})
+            end
+            if resp and resp.Body and #resp.Body > 0 then
+                if writefile then writefile(fileName, resp.Body) end
+                if getcustomasset then
+                    img.Image = getcustomasset(fileName)
+                end
+            end
+        end)
+    end)
+end
+
+-- ════════════════════════════════════════════════════════════════
 -- THEME
 -- ════════════════════════════════════════════════════════════════
 
@@ -651,20 +682,51 @@ end
 local function CreateTabIcon(parent, iconType, sbWidth, iconColor)
     local sz = RS(20, 18)
     local xOff = RS(18, 12)
-    local c=Instance.new("Frame"); c.Size=UDim2.new(0,sz,0,sz)
-    c.Position=UDim2.new(0,xOff,0.5,-sz/2)
-    c.BackgroundTransparency=1; c.ZIndex=9; c.Parent=parent
-    local m={
-        circle="●",square="■",diamond="◆",bars="≡",triangle="▶",
-        ["dot-grid"]="⊞",settings="⚙",bolt="⚡",shield="⛨",star="★",
-        coin="$",trash="✕",["arrow-up"]="▲",fire="◈",list="☰",
-        refresh="⟳",target="◎",crown="♛",skull="☠",webhook="🔗",
-    }
-    local l=Instance.new("TextLabel"); l.Size=UDim2.new(1,0,1,0)
-    l.BackgroundTransparency=1; l.Text=m[iconType] or "●"
-    l.TextColor3=iconColor or Theme.Accent; l.TextSize=RS(16,14)
-    l.Font=Enum.Font.GothamBold
-    l.ZIndex=10; l.Parent=c
+
+    local c = Instance.new("Frame")
+    c.Size = UDim2.new(0, sz, 0, sz)
+    c.Position = UDim2.new(0, xOff, 0.5, -sz/2)
+    c.BackgroundTransparency = 1
+    c.ZIndex = 9
+    c.Parent = parent
+
+    -- Check if iconType is a URL or .png filename
+    local isUrl = type(iconType) == "string"
+        and (iconType:match("^https?://") or iconType:match("%.png$"))
+
+    if isUrl then
+        -- Resolve to full URL if just a filename
+        local fullUrl = iconType:match("^https?://") and iconType or (ICON_BASE .. iconType)
+
+        local img = Instance.new("ImageLabel")
+        img.Name = "TabIcon"
+        img.Size = UDim2.new(1, 0, 1, 0)
+        img.BackgroundTransparency = 1
+        img.ImageColor3 = iconColor or Theme.TextDim
+        img.ScaleType = Enum.ScaleType.Fit
+        img.ZIndex = 10
+        img.Parent = c
+
+        LoadIconImage(img, fullUrl)
+    else
+        -- Original Unicode text-based icon
+        local m = {
+            circle="●", square="■", diamond="◆", bars="≡", triangle="▶",
+            ["dot-grid"]="⊞", settings="⚙", bolt="⚡", shield="⛨", star="★",
+            coin="$", trash="✕", ["arrow-up"]="▲", fire="◈", list="☰",
+            refresh="⟳", target="◎", crown="♛", skull="☠", webhook="🔗",
+        }
+        local l = Instance.new("TextLabel")
+        l.Name = "TabIcon"
+        l.Size = UDim2.new(1, 0, 1, 0)
+        l.BackgroundTransparency = 1
+        l.Text = m[iconType] or "●"
+        l.TextColor3 = iconColor or Theme.Accent
+        l.TextSize = RS(16, 14)
+        l.Font = Enum.Font.GothamBold
+        l.ZIndex = 10
+        l.Parent = c
+    end
 end
 
 local IconTypes={"circle","square","diamond","bars","triangle","dot-grid","bolt","star","shield"}
@@ -932,10 +994,20 @@ function GluttonyUI:CreateWindow(options)
                 Tween(btn,{BackgroundColor3=Theme.SelectedTab},0.2)
                 if ind then Tween(ind,{BackgroundTransparency=0,Size=UDim2.new(0,4,0,26)},0.2) end
                 if lbl then Tween(lbl,{TextColor3=Theme.Text},0.2) end
+                local ico = btn:FindFirstChild("TabIcon", true)
+                if ico then
+                    if ico:IsA("ImageLabel") then Tween(ico,{ImageColor3=Theme.Accent},0.2)
+                    elseif ico:IsA("TextLabel") then Tween(ico,{TextColor3=Theme.Accent},0.2) end
+                end
             else
                 Tween(btn,{BackgroundColor3=Theme.Sidebar},0.2)
                 if ind then Tween(ind,{BackgroundTransparency=1,Size=UDim2.new(0,4,0,22)},0.2) end
                 if lbl then Tween(lbl,{TextColor3=Theme.TextDim},0.15) end
+                local ico = btn:FindFirstChild("TabIcon", true)
+                if ico then
+                    if ico:IsA("ImageLabel") then Tween(ico,{ImageColor3=Theme.TextDim},0.2)
+                    elseif ico:IsA("TextLabel") then Tween(ico,{TextColor3=Theme.TextDim},0.2) end
+                end
             end
         end
     end
@@ -962,7 +1034,8 @@ function GluttonyUI:CreateWindow(options)
         indicator.BorderSizePixel=0; indicator.ZIndex=8; indicator.Parent=tabBtn
         Corner(indicator,UDim.new(1,0))
 
-        CreateTabIcon(tabBtn, iconType, SW, iconColor)
+        local initialIconColor = isFirst and Theme.Accent or (iconColor or Theme.TextDim)
+        CreateTabIcon(tabBtn, iconType, SW, initialIconColor)
 
         local iconW=RS(44,38)
         local tabLabel=Instance.new("TextLabel"); tabLabel.Name="Label"
@@ -3034,8 +3107,8 @@ function GluttonyUI:CreateWindow(options)
         si.Size=UDim2.new(0,4,0,22); si.Position=UDim2.new(0,5,0.5,-11)
         si.BackgroundColor3=Theme.Accent; si.BackgroundTransparency=1
         si.BorderSizePixel=0; si.ZIndex=8; si.Parent=sb; Corner(si,UDim.new(1,0))
-        CreateTabIcon(sb,"settings",SW)
-
+        CreateTabIcon(sb, "settings.png", SW, Theme.TextDim)
+        
         local iconW2=RS(44,38)
         local sl=Instance.new("TextLabel"); sl.Name="Label"
         sl.Size=UDim2.new(1,-iconW2,1,0); sl.Position=UDim2.new(0,iconW2,0,0)
