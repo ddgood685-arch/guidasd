@@ -41,10 +41,12 @@ local function LoadIconImage(img, iconUrl)
     task.spawn(function()
         pcall(function()
             local fileName = "gluttony_icon_" .. iconUrl:match("([^/]+)$")
+            
+            -- DELETE old cached file to force fresh download
             if isfile and isfile(fileName) then
-                img.Image = getcustomasset(fileName)
-                return
+                if delfile then delfile(fileName) end
             end
+            
             local resp = nil
             if syn and syn.request then
                 resp = syn.request({Url=iconUrl, Method="GET"})
@@ -53,11 +55,18 @@ local function LoadIconImage(img, iconUrl)
             elseif request then
                 resp = request({Url=iconUrl, Method="GET"})
             end
+            
             if resp and resp.Body and #resp.Body > 0 then
+                warn("[Icon] Got response, size:", #resp.Body, "for", fileName)
                 if writefile then writefile(fileName, resp.Body) end
                 if getcustomasset then
-                    img.Image = getcustomasset(fileName)
+                    local asset = getcustomasset(fileName)
+                    warn("[Icon] Asset ID:", asset)
+                    img.Image = asset
+                    warn("[Icon] Image set to:", img.Image)
                 end
+            else
+                warn("[Icon] No response or empty body for", iconUrl)
             end
         end)
     end)
