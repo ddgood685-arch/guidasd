@@ -40,33 +40,32 @@ local ICON_BASE = "https://raw.githubusercontent.com/ddgood685-arch/guidasd/refs
 local function LoadIconImage(img, iconUrl)
     task.spawn(function()
         pcall(function()
-            local fileName = "gluttony_icon_" .. iconUrl:match("([^/]+)$")
-            
-            -- DELETE old cached file to force fresh download
-            if isfile and isfile(fileName) then
-                if delfile then delfile(fileName) end
+            local fileName = "gluttony_icon_" .. (iconUrl:match("([^/]+)$") or "icon.png")
+
+            -- Always refresh the cached file so updated GitHub icons actually load
+            if isfile and isfile(fileName) and delfile then
+                delfile(fileName)
             end
-            
+
             local resp = nil
             if syn and syn.request then
-                resp = syn.request({Url=iconUrl, Method="GET"})
+                resp = syn.request({Url = iconUrl, Method = "GET"})
             elseif http_request then
-                resp = http_request({Url=iconUrl, Method="GET"})
+                resp = http_request({Url = iconUrl, Method = "GET"})
             elseif request then
-                resp = request({Url=iconUrl, Method="GET"})
+                resp = request({Url = iconUrl, Method = "GET"})
             end
-            
+
             if resp and resp.Body and #resp.Body > 0 then
-                warn("[Icon] Got response, size:", #resp.Body, "for", fileName)
-                if writefile then writefile(fileName, resp.Body) end
-                if getcustomasset then
-                    local asset = getcustomasset(fileName)
-                    warn("[Icon] Asset ID:", asset)
-                    img.Image = asset
-                    warn("[Icon] Image set to:", img.Image)
+                if writefile then
+                    writefile(fileName, resp.Body)
                 end
-            else
-                warn("[Icon] No response or empty body for", iconUrl)
+
+                if getcustomasset then
+                    img.Image = getcustomasset(fileName)
+                elseif getsynasset then
+                    img.Image = getsynasset(fileName)
+                end
             end
         end)
     end)
@@ -713,7 +712,7 @@ local function CreateTabIcon(parent, iconType, sbWidth, iconColor)
         img.BackgroundTransparency = 1
 
         -- Keep original PNG colors
-        img.ImageColor3 = Color3.fromRGB(255, 0, 0)
+        img.ImageColor3 = Color3.fromRGB(255, 255, 255)
 
         -- Optional dimming for unselected image tabs
         local isInitiallySelected = (iconColor == Theme.Accent)
