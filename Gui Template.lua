@@ -702,10 +702,20 @@ local function CreateTabIcon(parent, iconType, sbWidth, iconColor)
         img.Name = "TabIcon"
         img.Size = UDim2.new(1, 0, 1, 0)
         img.BackgroundTransparency = 1
-        img.ImageColor3 = iconColor or Theme.TextDim
+
+        -- Keep original PNG colors
+        img.ImageColor3 = Color3.fromRGB(255, 255, 255)
+
+        -- Optional dimming for unselected image tabs
+        local isInitiallySelected = (iconColor == Theme.Accent)
+        img.ImageTransparency = isInitiallySelected and 0 or 0.35
+
         img.ScaleType = Enum.ScaleType.Fit
         img.ZIndex = 10
         img.Parent = c
+
+        -- Mark this as a real image icon so SwitchTab won't tint it
+        img:SetAttribute("IsUrlIcon", true)
 
         LoadIconImage(img, fullUrl)
     else
@@ -996,8 +1006,15 @@ function GluttonyUI:CreateWindow(options)
                 if lbl then Tween(lbl,{TextColor3=Theme.Text},0.2) end
                 local ico = btn:FindFirstChild("TabIcon", true)
                 if ico then
-                    if ico:IsA("ImageLabel") then Tween(ico,{ImageColor3=Theme.Accent},0.2)
-                    elseif ico:IsA("TextLabel") then Tween(ico,{TextColor3=Theme.Accent},0.2) end
+                    if ico:IsA("ImageLabel") then
+                        if ico:GetAttribute("IsUrlIcon") then
+                            Tween(ico,{ImageTransparency=0},0.2)
+                        else
+                            Tween(ico,{ImageColor3=Theme.Accent},0.2)
+                        end
+                    elseif ico:IsA("TextLabel") then
+                        Tween(ico,{TextColor3=Theme.Accent},0.2)
+                    end
                 end
             else
                 Tween(btn,{BackgroundColor3=Theme.Sidebar},0.2)
@@ -1005,8 +1022,15 @@ function GluttonyUI:CreateWindow(options)
                 if lbl then Tween(lbl,{TextColor3=Theme.TextDim},0.15) end
                 local ico = btn:FindFirstChild("TabIcon", true)
                 if ico then
-                    if ico:IsA("ImageLabel") then Tween(ico,{ImageColor3=Theme.TextDim},0.2)
-                    elseif ico:IsA("TextLabel") then Tween(ico,{TextColor3=Theme.TextDim},0.2) end
+                    if ico:IsA("ImageLabel") then
+                        if ico:GetAttribute("IsUrlIcon") then
+                            Tween(ico,{ImageTransparency=0.35},0.2)
+                        else
+                            Tween(ico,{ImageColor3=Theme.TextDim},0.2)
+                        end
+                    elseif ico:IsA("TextLabel") then
+                        Tween(ico,{TextColor3=Theme.TextDim},0.2)
+                    end
                 end
             end
         end
