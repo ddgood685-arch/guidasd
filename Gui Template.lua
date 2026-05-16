@@ -704,7 +704,7 @@ local function CreateTabIcon(parent, iconType, sbWidth, iconColor)
         img.BackgroundTransparency = 1
 
         -- Keep original PNG colors
-        img.ImageColor3 = iconColor or Theme.TextDim
+        img.ImageColor3 = Color3.fromRGB(255, 0, 0)
 
         -- Optional dimming for unselected image tabs
         local isInitiallySelected = (iconColor == Theme.Accent)
