@@ -2283,22 +2283,32 @@ function GluttonyUI:CreateWindow(options)
             ListLayout(panel,4); Padding(panel,4,4,4,4)
 
             local trackConn=nil
-            local function GetPP(th)
+            local flippedUp=false
+            -- Applies Position + AnchorPoint so the panel's "anchor edge" is the
+            -- side touching the button. That way Size tweens (open/close) collapse
+            -- toward the button regardless of whether we opened down or up.
+            local function ApplyPosition(th)
                 local da=ddBtn.AbsolutePosition; local ds=ddBtn.AbsoluteSize
                 local ia=inner.AbsolutePosition; local is=inner.AbsoluteSize
                 local rx=da.X-ia.X
-                local ryB=da.Y-ia.Y+ds.Y+4
-                local ryA=da.Y-ia.Y-th-4
-                if ryB+th>is.Y and ryA>=0 then
-                    return UDim2.new(0,rx,0,ryA)
-                else return UDim2.new(0,rx,0,ryB) end
+                local ryB=da.Y-ia.Y+ds.Y+4         -- top of panel when opening DOWN
+                local ryAnchorBottom=da.Y-ia.Y-4   -- bottom of panel when opening UP (= button top - 4)
+                if ryB+th>is.Y and (ryAnchorBottom-th)>=0 then
+                    flippedUp=true
+                    panel.AnchorPoint=Vector2.new(0,1)
+                    panel.Position=UDim2.new(0,rx,0,ryAnchorBottom)
+                else
+                    flippedUp=false
+                    panel.AnchorPoint=Vector2.new(0,0)
+                    panel.Position=UDim2.new(0,rx,0,ryB)
+                end
             end
             local function GPS(th) return UDim2.new(0,ddBtn.AbsoluteSize.X,0,th) end
             local function STP(th)
                 if trackConn then return end
                 trackConn=AddConnection(RunService.Heartbeat:Connect(function()
                     if isOpen and panel and panel.Parent and panel.Visible then
-                        panel.Position=GetPP(th)
+                        ApplyPosition(th)
                     end
                 end))
             end
@@ -2372,13 +2382,15 @@ function GluttonyUI:CreateWindow(options)
 
             local function CL()
                 isOpen=false; StTP()
+                -- Re-apply position so AnchorPoint matches whichever direction we opened.
+                -- Size tweens to 0 collapse toward the anchored edge (i.e., toward the button).
                 Tween(panel,{Size=UDim2.new(0,0,0,0)},0.15)
                 task.delay(0.16,function() if not isOpen then panel.Visible=false end end)
             end
             local function OP()
                 isOpen=true; BuildOptions()
                 local th=math.min(#normalized*(rowH+4)+8, maxItemsVisible*(rowH+4)+8)
-                panel.Position=GetPP(th)
+                ApplyPosition(th)
                 panel.Size=UDim2.new(0,ddBtn.AbsoluteSize.X,0,0)
                 panel.Visible=true
                 Tween(panel,{Size=GPS(th)},0.2)
