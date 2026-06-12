@@ -2195,8 +2195,14 @@ function GluttonyUI:CreateWindow(options)
         -- MULTI-SELECT DROPDOWN
         -- Compact dropdown that allows selecting multiple options.
         -- items: array of strings OR array of { Name = "...", Color = Color3?, Hint = "..."? }
+        -- Optional opts: { Width = number? }  -- panel width override
         -- callback(selectedSet) where selectedSet is a map { [name] = true, ... }
-        function Tab:AddMultiSelectDropdown(labelText,items,callback)
+        function Tab:AddMultiSelectDropdown(labelText,items,optsOrCallback,callbackOrNil)
+            local opts, callback
+            if type(optsOrCallback)=="function" then
+                callback=optsOrCallback; opts={}
+            else opts=optsOrCallback or {}; callback=callbackOrNil end
+
             local order=NextOrder(); local isOpen=false
 
             local normalized={}
@@ -2284,16 +2290,32 @@ function GluttonyUI:CreateWindow(options)
 
             local trackConn=nil
             local flippedUp=false
-            -- Applies Position + AnchorPoint so the panel's "anchor edge" is the
-            -- side touching the button. That way Size tweens (open/close) collapse
-            -- toward the button regardless of whether we opened down or up.
+            -- Width: optional opts.Width overrides the button width.
+            -- If wider than button, panel is right-aligned with the button so it
+            -- grows leftward (avoids overflowing off the right side of the row).
+            local function PanelWidth()
+                local btnW = ddBtn.AbsoluteSize.X
+                if opts.Width and opts.Width > btnW then return opts.Width end
+                return btnW
+            end
+            -- Decides direction by checking against the VIEWPORT, not just the
+            -- (sometimes-tiny) tab content area. If the panel would extend past
+            -- the bottom of the screen AND there's room above, we flip up;
+            -- otherwise we open down. AnchorPoint is set so the open/close Size
+            -- tween always collapses toward the button.
             local function ApplyPosition(th)
                 local da=ddBtn.AbsolutePosition; local ds=ddBtn.AbsoluteSize
-                local ia=inner.AbsolutePosition; local is=inner.AbsoluteSize
-                local rx=da.X-ia.X
-                local ryB=da.Y-ia.Y+ds.Y+4         -- top of panel when opening DOWN
-                local ryAnchorBottom=da.Y-ia.Y-4   -- bottom of panel when opening UP (= button top - 4)
-                if ryB+th>is.Y and (ryAnchorBottom-th)>=0 then
+                local ia=inner.AbsolutePosition
+                local viewportY=workspace.CurrentCamera.ViewportSize.Y
+                local pw=PanelWidth()
+                local rx=(da.X+ds.X)-ia.X-pw            -- right-align with button
+                local ryB=da.Y-ia.Y+ds.Y+4               -- top of panel when opening DOWN
+                local ryAnchorBottom=da.Y-ia.Y-4         -- bottom of panel when opening UP
+                local panelBottomScreen=da.Y+ds.Y+4+th
+                local panelTopScreen=da.Y-4-th
+                local roomDown=panelBottomScreen<=viewportY
+                local roomUp=panelTopScreen>=0
+                if (not roomDown) and roomUp then
                     flippedUp=true
                     panel.AnchorPoint=Vector2.new(0,1)
                     panel.Position=UDim2.new(0,rx,0,ryAnchorBottom)
@@ -2303,7 +2325,7 @@ function GluttonyUI:CreateWindow(options)
                     panel.Position=UDim2.new(0,rx,0,ryB)
                 end
             end
-            local function GPS(th) return UDim2.new(0,ddBtn.AbsoluteSize.X,0,th) end
+            local function GPS(th) return UDim2.new(0,PanelWidth(),0,th) end
             local function STP(th)
                 if trackConn then return end
                 trackConn=AddConnection(RunService.Heartbeat:Connect(function()
@@ -2391,7 +2413,7 @@ function GluttonyUI:CreateWindow(options)
                 isOpen=true; BuildOptions()
                 local th=math.min(#normalized*(rowH+4)+8, maxItemsVisible*(rowH+4)+8)
                 ApplyPosition(th)
-                panel.Size=UDim2.new(0,ddBtn.AbsoluteSize.X,0,0)
+                panel.Size=UDim2.new(0,PanelWidth(),0,0)
                 panel.Visible=true
                 Tween(panel,{Size=GPS(th)},0.2)
                 STP(th)
