@@ -2227,7 +2227,9 @@ function GluttonyUI:CreateWindow(options)
             lbl.Font=Theme.FontLight; lbl.TextXAlignment=Enum.TextXAlignment.Left
             lbl.ZIndex=11; lbl.Parent=row
 
-            local ddW=RS(180,160)
+            -- If opts.Width is set, the button widens to match the panel so the
+            -- two visually align (otherwise a wide panel atop a narrow button looks odd).
+            local ddW=opts.Width or RS(180,160)
             local ddBtn=Instance.new("Frame"); ddBtn.Size=UDim2.new(0,ddW,0,RS(30,34))
             ddBtn.Position=UDim2.new(1,-(ddW+RS(16,12)),0.5,-RS(15,17))
             ddBtn.BackgroundColor3=Theme.InputBg; ddBtn.BorderSizePixel=0
