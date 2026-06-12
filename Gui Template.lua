@@ -2300,24 +2300,19 @@ function GluttonyUI:CreateWindow(options)
                 if opts.Width and opts.Width > btnW then return opts.Width end
                 return btnW
             end
-            -- Decides direction by checking against the VIEWPORT, not just the
-            -- (sometimes-tiny) tab content area. If the panel would extend past
-            -- the bottom of the screen AND there's room above, we flip up;
-            -- otherwise we open down. AnchorPoint is set so the open/close Size
-            -- tween always collapses toward the button.
+            -- Decides direction by checking against the INNER content area
+            -- (the visible area of the tab page). The panel can't render past
+            -- inner's visible bottom (clipping/scroll-confinement), so the check
+            -- has to use is.Y not viewport. AnchorPoint is set so the open/close
+            -- Size tween always collapses toward the button.
             local function ApplyPosition(th)
                 local da=ddBtn.AbsolutePosition; local ds=ddBtn.AbsoluteSize
-                local ia=inner.AbsolutePosition
-                local viewportY=workspace.CurrentCamera.ViewportSize.Y
+                local ia=inner.AbsolutePosition; local is=inner.AbsoluteSize
                 local pw=PanelWidth()
                 local rx=(da.X+ds.X)-ia.X-pw            -- right-align with button
                 local ryB=da.Y-ia.Y+ds.Y+4               -- top of panel when opening DOWN
                 local ryAnchorBottom=da.Y-ia.Y-4         -- bottom of panel when opening UP
-                local panelBottomScreen=da.Y+ds.Y+4+th
-                local panelTopScreen=da.Y-4-th
-                local roomDown=panelBottomScreen<=viewportY
-                local roomUp=panelTopScreen>=0
-                if (not roomDown) and roomUp then
+                if ryB+th>is.Y and (ryAnchorBottom-th)>=0 then
                     flippedUp=true
                     panel.AnchorPoint=Vector2.new(0,1)
                     panel.Position=UDim2.new(0,rx,0,ryAnchorBottom)
