@@ -2192,6 +2192,217 @@ function GluttonyUI:CreateWindow(options)
             }
         end
 
+        -- MULTI-SELECT DROPDOWN
+        -- Compact dropdown that allows selecting multiple options.
+        -- items: array of strings OR array of { Name = "...", Color = Color3?, Hint = "..."? }
+        -- callback(selectedSet) where selectedSet is a map { [name] = true, ... }
+        function Tab:AddMultiSelectDropdown(labelText,items,callback)
+            local order=NextOrder(); local isOpen=false
+
+            local normalized={}
+            for i,item in ipairs(items) do
+                normalized[i]=(type(item)=="string") and {Name=item} or item
+            end
+
+            local configKey="_msdropdown_"..labelText
+            local saved=StateStore[configKey]
+            local selected=(saved and type(saved)=="table") and saved or {}
+            StateStore[configKey]=selected
+
+            local row=Instance.new("Frame"); row.Size=UDim2.new(1,0,0,RH)
+            row.BackgroundColor3=RowColor(order); row.BorderSizePixel=0
+            row.LayoutOrder=order; row.ZIndex=10; row.ClipsDescendants=false
+            row.Parent=page; Corner(row,Theme.CornerRadius)
+            HoverAccent(row)
+
+            local lbl=Instance.new("TextLabel"); lbl.Size=UDim2.new(0,RS(140,110),1,0)
+            lbl.Position=UDim2.new(0,18,0,0); lbl.BackgroundTransparency=1
+            lbl.Text=labelText; lbl.TextColor3=Theme.Text; lbl.TextSize=Theme.FontSize
+            lbl.Font=Theme.FontLight; lbl.TextXAlignment=Enum.TextXAlignment.Left
+            lbl.ZIndex=11; lbl.Parent=row
+
+            local ddW=RS(180,160)
+            local ddBtn=Instance.new("Frame"); ddBtn.Size=UDim2.new(0,ddW,0,RS(30,34))
+            ddBtn.Position=UDim2.new(1,-(ddW+RS(16,12)),0.5,-RS(15,17))
+            ddBtn.BackgroundColor3=Theme.InputBg; ddBtn.BorderSizePixel=0
+            ddBtn.ZIndex=12; ddBtn.Parent=row
+            Corner(ddBtn,UDim.new(0,6)); Stroke(ddBtn,Theme.Border,1,0.5)
+
+            local ddLabel=Instance.new("TextLabel"); ddLabel.Size=UDim2.new(1,-32,1,0)
+            ddLabel.Position=UDim2.new(0,10,0,0); ddLabel.BackgroundTransparency=1
+            ddLabel.TextSize=Theme.FontSizeSmall; ddLabel.Font=Theme.FontLight
+            ddLabel.TextXAlignment=Enum.TextXAlignment.Left
+            ddLabel.TextTruncate=Enum.TextTruncate.AtEnd
+            ddLabel.ZIndex=13; ddLabel.Parent=ddBtn
+
+            local function UpdateLabel()
+                local count=0; local firstName,firstColor
+                for _,item in ipairs(normalized) do
+                    if selected[item.Name] then
+                        count=count+1
+                        if not firstName then
+                            firstName=item.Name; firstColor=item.Color
+                        end
+                    end
+                end
+                if count==0 then
+                    ddLabel.Text="Select..."; ddLabel.TextColor3=Theme.TextDim
+                elseif count==1 then
+                    ddLabel.Text=firstName; ddLabel.TextColor3=firstColor or Theme.Text
+                else
+                    ddLabel.Text=count.." selected"; ddLabel.TextColor3=Theme.Text
+                end
+            end
+            UpdateLabel()
+
+            local af=Instance.new("Frame"); af.Size=UDim2.new(0,12,0,12)
+            af.Position=UDim2.new(1,-22,0.5,-6); af.BackgroundTransparency=1
+            af.ZIndex=13; af.Parent=ddBtn
+            local al=Instance.new("Frame"); al.Size=UDim2.new(0,7,0,2)
+            al.Position=UDim2.new(0,0,0.5,-1); al.AnchorPoint=Vector2.new(0,0.5)
+            al.BackgroundColor3=Theme.Accent; al.Rotation=35; al.BorderSizePixel=0
+            al.Parent=af; Corner(al,UDim.new(1,0))
+            local ar=Instance.new("Frame"); ar.Size=UDim2.new(0,7,0,2)
+            ar.Position=UDim2.new(1,0,0.5,-1); ar.AnchorPoint=Vector2.new(1,0.5)
+            ar.BackgroundColor3=Theme.Accent; ar.Rotation=-35; ar.BorderSizePixel=0
+            ar.Parent=af; Corner(ar,UDim.new(1,0))
+
+            local ddClick=Instance.new("TextButton"); ddClick.Size=UDim2.new(1,0,1,0)
+            ddClick.BackgroundTransparency=1; ddClick.Text=""
+            ddClick.ZIndex=14; ddClick.Parent=ddBtn
+
+            local rowH=RS(42,48)
+            local maxItemsVisible=5
+
+            local panel=Instance.new("ScrollingFrame")
+            panel.Size=UDim2.new(0,0,0,0); panel.BackgroundColor3=Theme.DropdownBg
+            panel.BorderSizePixel=0; panel.ClipsDescendants=true
+            panel.ScrollBarThickness=3; panel.ScrollBarImageColor3=Theme.Accent
+            panel.ZIndex=500; panel.Visible=false; panel.Parent=inner
+            Corner(panel,UDim.new(0,6)); Stroke(panel,Theme.Accent,1,0.6)
+            ListLayout(panel,4); Padding(panel,4,4,4,4)
+
+            local trackConn=nil
+            local function GetPP(th)
+                local da=ddBtn.AbsolutePosition; local ds=ddBtn.AbsoluteSize
+                local ia=inner.AbsolutePosition; local is=inner.AbsoluteSize
+                local rx=da.X-ia.X
+                local ryB=da.Y-ia.Y+ds.Y+4
+                local ryA=da.Y-ia.Y-th-4
+                if ryB+th>is.Y and ryA>=0 then
+                    return UDim2.new(0,rx,0,ryA)
+                else return UDim2.new(0,rx,0,ryB) end
+            end
+            local function GPS(th) return UDim2.new(0,ddBtn.AbsoluteSize.X,0,th) end
+            local function STP(th)
+                if trackConn then return end
+                trackConn=AddConnection(RunService.Heartbeat:Connect(function()
+                    if isOpen and panel and panel.Parent and panel.Visible then
+                        panel.Position=GetPP(th)
+                    end
+                end))
+            end
+            local function StTP()
+                if trackConn then trackConn:Disconnect(); trackConn=nil end
+            end
+
+            local function BuildOptions()
+                for _,ch in pairs(panel:GetChildren()) do
+                    if ch:IsA("Frame") then ch:Destroy() end
+                end
+                for i,item in ipairs(normalized) do
+                    local isSel=selected[item.Name]==true
+                    local optFrame=Instance.new("Frame")
+                    optFrame.Size=UDim2.new(1,0,0,rowH)
+                    optFrame.BackgroundColor3=isSel and Color3.fromRGB(40,50,65) or Theme.DropdownBg
+                    optFrame.BorderSizePixel=0; optFrame.LayoutOrder=i
+                    optFrame.ZIndex=501; optFrame.Parent=panel
+                    Corner(optFrame,UDim.new(0,5))
+
+                    local cb=Instance.new("Frame")
+                    cb.Size=UDim2.new(0,14,0,14)
+                    cb.Position=UDim2.new(0,10,0.5,-7)
+                    cb.BackgroundColor3=isSel and Theme.Accent or Color3.fromRGB(60,60,72)
+                    cb.BorderSizePixel=0; cb.ZIndex=502; cb.Parent=optFrame
+                    Corner(cb,UDim.new(0,3))
+
+                    local hasHint=item.Hint and item.Hint~=""
+                    local nameLbl=Instance.new("TextLabel")
+                    nameLbl.Size=UDim2.new(1,-36,0,hasHint and 18 or rowH)
+                    nameLbl.Position=UDim2.new(0,32,0,hasHint and 4 or 0)
+                    nameLbl.BackgroundTransparency=1
+                    nameLbl.Text=item.Name
+                    nameLbl.TextColor3=item.Color or Theme.Text
+                    nameLbl.TextSize=RS(13,14); nameLbl.Font=Theme.Font
+                    nameLbl.TextXAlignment=Enum.TextXAlignment.Left
+                    nameLbl.ZIndex=502; nameLbl.Parent=optFrame
+
+                    if hasHint then
+                        local hintLbl=Instance.new("TextLabel")
+                        hintLbl.Size=UDim2.new(1,-36,0,14)
+                        hintLbl.Position=UDim2.new(0,32,0,22)
+                        hintLbl.BackgroundTransparency=1
+                        hintLbl.Text=item.Hint
+                        hintLbl.TextColor3=Theme.TextDim
+                        hintLbl.TextSize=RS(10,11); hintLbl.Font=Theme.FontLight
+                        hintLbl.TextXAlignment=Enum.TextXAlignment.Left
+                        hintLbl.ZIndex=502; hintLbl.Parent=optFrame
+                    end
+
+                    local btn=Instance.new("TextButton")
+                    btn.Size=UDim2.new(1,0,1,0)
+                    btn.BackgroundTransparency=1; btn.Text=""
+                    btn.AutoButtonColor=false; btn.ZIndex=503
+                    btn.Parent=optFrame
+                    AddConnection(btn.MouseButton1Click:Connect(function()
+                        if selected[item.Name] then
+                            selected[item.Name]=nil
+                        else
+                            selected[item.Name]=true
+                        end
+                        StateStore[configKey]=selected
+                        ConfigManager:QueueSave()
+                        UpdateLabel()
+                        BuildOptions()
+                        if callback then task.spawn(callback,selected) end
+                    end))
+                end
+                panel.CanvasSize=UDim2.new(0,0,0,#normalized*(rowH+4)+8)
+            end
+
+            local function CL()
+                isOpen=false; StTP()
+                Tween(panel,{Size=UDim2.new(0,0,0,0)},0.15)
+                task.delay(0.16,function() if not isOpen then panel.Visible=false end end)
+            end
+            local function OP()
+                isOpen=true; BuildOptions()
+                local th=math.min(#normalized*(rowH+4)+8, maxItemsVisible*(rowH+4)+8)
+                panel.Position=GetPP(th)
+                panel.Size=UDim2.new(0,ddBtn.AbsoluteSize.X,0,0)
+                panel.Visible=true
+                Tween(panel,{Size=GPS(th)},0.2)
+                STP(th)
+            end
+
+            AddConnection(ddClick.MouseButton1Click:Connect(function()
+                if isOpen then CL() else OP() end
+            end))
+
+            if next(selected) and callback then task.defer(callback,selected) end
+
+            return {
+                Set=function(_,sel)
+                    selected=sel or {}
+                    StateStore[configKey]=selected
+                    ConfigManager:QueueSave()
+                    UpdateLabel()
+                    if isOpen then BuildOptions() end
+                end,
+                Get=function() return selected end,
+            }
+        end
+
         -- PRIORITY LIST
         function Tab:AddPriorityList(labelText,items,callback)
             local order=NextOrder()
