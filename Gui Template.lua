@@ -766,19 +766,47 @@ AutoFriends._playerAddedConn = nil
 local function _log(...) print("[AutoFriends]", ...) end
 local function _warn(...) warn("[AutoFriends]", ...) end
 
-local _setIdentity = setthreadidentity or set_thread_identity or sethreadidentity or setidentity or setthreadcontext
-local _getIdentity = getthreadidentity or get_thread_identity or getidentity or getthreadcontext
+local _setIdentity = setthreadidentity or set_thread_identity or sethreadidentity or setidentity or setthreadcontext or set_thread_context or setcontext
+local _getIdentity = getthreadidentity or get_thread_identity or getidentity or getthreadcontext or get_thread_context or getcontext
 
--- Run fn with the executor's thread identity bumped to 8 (CoreScript level)
--- so functions like LocalPlayer:RequestFriendship don't get "thread cannot
--- call this function (blocked)". Restores prior identity afterwards.
+local function _diagnoseExecutor()
+    _log("=== executor diag ===")
+    for _, name in ipairs({
+        "setthreadidentity","set_thread_identity","sethreadidentity",
+        "setidentity","setthreadcontext","set_thread_context","setcontext",
+        "getthreadidentity","getidentity","getthreadcontext",
+        "hookfunction","checkcaller","getrawmetatable","request","syn","fluxus","http_request",
+    }) do
+        local v = rawget(_G, name)
+        _log(" ", name, "=", type(v))
+    end
+    if _getIdentity then
+        local ok, ident = pcall(_getIdentity)
+        _log("current identity:", ok and ident or "err")
+    end
+    _log("=====================")
+end
+
 local function _withMaxIdentity(fn)
     if not _setIdentity then return pcall(fn) end
-    local prev = _getIdentity and (pcall(_getIdentity)) and _getIdentity() or nil
-    pcall(_setIdentity, 8)
-    local ok, err = pcall(fn)
+    local prev
+    if _getIdentity then local ok, v = pcall(_getIdentity); if ok then prev = v end end
+    -- Try identities from highest to lowest until one allows the call
+    for _, ident in ipairs({8, 7, 6, 4, 2}) do
+        pcall(_setIdentity, ident)
+        local ok, err = pcall(fn)
+        if ok then
+            if prev then pcall(_setIdentity, prev) end
+            return true, nil
+        end
+        -- if the error isn't the "blocked" one, no point trying other identities
+        if not tostring(err):find("blocked") then
+            if prev then pcall(_setIdentity, prev) end
+            return false, err
+        end
+    end
     if prev then pcall(_setIdentity, prev) end
-    return ok, err
+    return false, "all identity levels blocked"
 end
 
 local function _sendOutgoing(player)
@@ -810,6 +838,7 @@ function AutoFriends.start()
     AutoFriends._running   = true
     AutoFriends._requested = {}
     _log("started")
+    _diagnoseExecutor()
 
     AutoFriends._playerAddedConn = Players.PlayerAdded:Connect(function(p)
         if not AutoFriends._running then return end
