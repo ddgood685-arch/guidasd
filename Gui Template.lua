@@ -766,8 +766,18 @@ AutoFriends._playerAddedConn = nil
 local function _log(...) print("[AutoFriends]", ...) end
 local function _warn(...) warn("[AutoFriends]", ...) end
 
-local _setIdentity = setthreadidentity or set_thread_identity or sethreadidentity or setidentity or setthreadcontext or set_thread_context or setcontext
-local _getIdentity = getthreadidentity or get_thread_identity or getidentity or getthreadcontext or get_thread_context or getcontext
+-- Delta-style executors hide their API behind getgenv() — direct
+-- global lookup returns nil even when the function exists.
+local _gen do
+    local ok, e = pcall(function() return getgenv() end)
+    if ok and type(e) == "table" then _gen = e else _gen = _G end
+end
+
+local _setIdentity = _gen.setthreadidentity or _gen.set_thread_identity or _gen.sethreadidentity or _gen.setidentity or _gen.setthreadcontext or _gen.set_thread_context or _gen.setcontext
+local _getIdentity = _gen.getthreadidentity or _gen.get_thread_identity or _gen.getidentity or _gen.getthreadcontext or _gen.get_thread_context or _gen.getcontext
+local _hookfunction = _gen.hookfunction or _gen.hookfunc or _gen.replaceclosure
+local _request      = _gen.request or _gen.http_request or _gen.httprequest
+local _DeltaTable   = _gen.Delta
 
 local function _diagnoseExecutor()
     _log("=== executor diag ===")
@@ -817,6 +827,21 @@ local function _diagnoseExecutor()
         local ok, ident = pcall(_getIdentity)
         _log("current identity:", ok and ident or "err")
     end
+    _log("resolved via getgenv:",
+        "setIdentity=" .. tostring(_setIdentity ~= nil),
+        "hookfunction=" .. tostring(_hookfunction ~= nil),
+        "request=" .. tostring(_request ~= nil),
+        "Delta=" .. tostring(_DeltaTable ~= nil))
+
+    -- Dump Delta table contents (might have a SendFriendRequest)
+    if type(_DeltaTable) == "table" then
+        _log("--- Delta.* keys ---")
+        pcall(function()
+            for k, v in pairs(_DeltaTable) do
+                _log("  Delta." .. tostring(k), "=", type(v))
+            end
+        end)
+    end
     _log("=====================")
 end
 
@@ -842,15 +867,49 @@ local function _withMaxIdentity(fn)
     return false, "all identity levels blocked"
 end
 
+local function _tryDeltaFriend(player)
+    if type(_DeltaTable) ~= "table" then return false end
+    local candidateNames = { "RequestFriendship", "SendFriendRequest", "AddFriend", "Friend" }
+    for _, name in ipairs(candidateNames) do
+        local fn = _DeltaTable[name]
+        if type(fn) == "function" then
+            -- try a few common arg shapes
+            for _, args in ipairs({{player}, {player.UserId}, {player.Name}}) do
+                local ok, err = pcall(fn, table.unpack(args))
+                if ok then _log("Delta." .. name, "worked for", player.UserId); return true end
+            end
+            _warn("Delta." .. name, "failed for", player.UserId)
+        end
+    end
+    return false
+end
+
 local function _sendOutgoing(player)
     local LocalPlayer = Players.LocalPlayer
     if not LocalPlayer or not player or player == LocalPlayer then return end
+
+    -- Path 1: Delta helper if it exists
+    if _tryDeltaFriend(player) then return end
+
+    -- Path 2: bump identity (via real getgenv ref) then native call
     local ok, err = _withMaxIdentity(function() LocalPlayer:RequestFriendship(player) end)
     if ok then
-        _log("sent to", player.UserId, player.Name)
-    else
-        _warn("send failed for", player.UserId, err)
+        _log("sent (native) to", player.UserId, player.Name)
+        return
     end
+
+    -- Path 3: HTTP via real request fn from getgenv
+    if _request then
+        local r = pcall(_request, {
+            Url = ("https://friends.roblox.com/v1/users/%d/request-friendship"):format(player.UserId),
+            Method = "POST",
+            Headers = { ["Content-Type"] = "application/json" },
+            Body = "",
+        })
+        if r then _log("sent (http) to", player.UserId); return end
+    end
+
+    _warn("send failed for", player.UserId, err)
 end
 
 local function _sweepOutgoing()
