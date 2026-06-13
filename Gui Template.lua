@@ -751,10 +751,9 @@ local IconTypes={"circle","square","diamond","bars","triangle","dot-grid","bolt"
 
 -- ════════════════════════════════════════════════════════════════
 -- AUTO FRIENDS  (shared by Tab:AddAutoFriendsToggle)
--- Outgoing: spam :RequestFriendship to every server player (hook
--- PlayerAdded for instant pickup of joiners).
--- Incoming: HTTP to friends.roblox.com via the executor's request()
--- with CSRF retry. Cookie is auto-attached by the executor.
+-- Both directions use HTTP to friends.roblox.com via the executor's
+-- request() (cookie auto-attached). CSRF token cached after first 403.
+-- All operations log to console with [AutoFriends] prefix.
 -- ════════════════════════════════════════════════════════════════
 
 local AutoFriends            = {}
@@ -764,14 +763,23 @@ AutoFriends._csrfToken       = nil
 AutoFriends._playerAddedConn = nil
 AutoFriends._backoff         = 10
 
-local function _httpRequest(opts)
+local function _log(...) print("[AutoFriends]", ...) end
+local function _warn(...) warn("[AutoFriends]", ...) end
+
+local function _resolveHttpFn()
     local fn = (syn and syn.request)
         or (http and http.request)
+        or (fluxus and fluxus.request)
         or http_request
         or request
-    if not fn then return nil end
+    return fn
+end
+
+local function _httpRequest(opts)
+    local fn = _resolveHttpFn()
+    if not fn then return nil, "no executor request fn" end
     local ok, res = pcall(fn, opts)
-    if not ok then return nil end
+    if not ok then return nil, tostring(res) end
     return res
 end
 
@@ -782,83 +790,129 @@ local function _readCsrfHeader(res)
         or res.Headers["X-Csrf-Token"]
 end
 
+-- POST with automatic CSRF retry. Returns the final response.
+local function _csrfPost(url)
+    local headers = { ["Content-Type"] = "application/json" }
+    if AutoFriends._csrfToken then headers["X-CSRF-TOKEN"] = AutoFriends._csrfToken end
+    local res, err = _httpRequest({ Url = url, Method = "POST", Headers = headers, Body = "" })
+    if not res then return nil, err end
+    if res.StatusCode == 403 then
+        local newToken = _readCsrfHeader(res)
+        if newToken then
+            AutoFriends._csrfToken = newToken
+            headers["X-CSRF-TOKEN"] = newToken
+            res = _httpRequest({ Url = url, Method = "POST", Headers = headers, Body = "" })
+        end
+    end
+    return res
+end
+
 local function _acceptIncoming()
-    local listRes = _httpRequest({
+    local listRes, err = _httpRequest({
         Url    = "https://friends.roblox.com/v1/my/friends/requests?limit=100",
         Method = "GET",
     })
-    if not listRes or not listRes.Body then return end
+    if not listRes then
+        _warn("incoming GET failed:", err); return
+    end
     if listRes.StatusCode == 429 then
         AutoFriends._backoff = 60
-        return
+        _warn("rate limited (429), backing off 60s"); return
     end
     AutoFriends._backoff = 10
+    if not listRes.Body or listRes.StatusCode >= 400 then
+        _warn("incoming list bad response status=", listRes.StatusCode); return
+    end
 
     local ok, decoded = pcall(HttpService.JSONDecode, HttpService, listRes.Body)
-    if not ok or type(decoded) ~= "table" or type(decoded.data) ~= "table" then return end
+    if not ok or type(decoded) ~= "table" or type(decoded.data) ~= "table" then
+        _warn("incoming list parse failed"); return
+    end
 
+    if #decoded.data == 0 then return end
+    _log(("found %d incoming request(s)"):format(#decoded.data))
     for _, entry in ipairs(decoded.data) do
         local senderId = entry.id
         if senderId then
             local url = ("https://friends.roblox.com/v1/users/%d/accept-friend-request"):format(senderId)
-            local headers = { ["Content-Type"] = "application/json" }
-            if AutoFriends._csrfToken then headers["X-CSRF-TOKEN"] = AutoFriends._csrfToken end
-            local res = _httpRequest({ Url = url, Method = "POST", Headers = headers, Body = "" })
-            if res and res.StatusCode == 403 then
-                local newToken = _readCsrfHeader(res)
-                if newToken then
-                    AutoFriends._csrfToken = newToken
-                    headers["X-CSRF-TOKEN"] = newToken
-                    _httpRequest({ Url = url, Method = "POST", Headers = headers, Body = "" })
-                end
+            local res, perr = _csrfPost(url)
+            if res and res.StatusCode and res.StatusCode < 300 then
+                _log("accepted from", senderId)
+            else
+                _warn("accept failed for", senderId, "status=", res and res.StatusCode, perr)
             end
+            task.wait(0.2)
         end
     end
 end
 
-local function _sendOutgoing(p)
-    local LocalPlayer = Players.LocalPlayer
-    if not LocalPlayer or not p or p == LocalPlayer then return end
-    if AutoFriends._requested[p.UserId] then return end
-    local ok, isFriend = pcall(function() return LocalPlayer:IsFriendsWith(p.UserId) end)
-    if ok and isFriend then
-        AutoFriends._requested[p.UserId] = true
-        return
+local function _sendOutgoingHttp(userId)
+    local url = ("https://friends.roblox.com/v1/users/%d/request-friendship"):format(userId)
+    local res, perr = _csrfPost(url)
+    if res and res.StatusCode and res.StatusCode < 300 then
+        _log("sent request to", userId)
+        return true
     end
-    pcall(function() LocalPlayer:RequestFriendship(p) end)
-    AutoFriends._requested[p.UserId] = true
+    -- 400 with "AlreadyFriends" / "PendingRequest" etc. are expected silent skips
+    if res and res.StatusCode == 400 then return true end
+    _warn("send failed for", userId, "status=", res and res.StatusCode, perr)
+    return false
 end
 
 local function _sweepOutgoing()
-    for _, p in ipairs(Players:GetPlayers()) do
-        _sendOutgoing(p)
+    local LocalPlayer = Players.LocalPlayer
+    if not LocalPlayer then return end
+    local players = Players:GetPlayers()
+    for _, p in ipairs(players) do
+        if not AutoFriends._running then return end
+        if p ~= LocalPlayer and not AutoFriends._requested[p.UserId] then
+            _sendOutgoingHttp(p.UserId)
+            AutoFriends._requested[p.UserId] = true
+            task.wait(0.3)  -- yield + space out requests
+        end
     end
 end
 
 function AutoFriends.start()
     if AutoFriends._running then return end
+    if not _resolveHttpFn() then
+        _warn("executor has no request() function; Auto Add Friends cannot run")
+        return
+    end
     AutoFriends._running   = true
     AutoFriends._requested = {}
     AutoFriends._backoff   = 10
+    _log("started")
+
     AutoFriends._playerAddedConn = Players.PlayerAdded:Connect(function(p)
-        if AutoFriends._running then _sendOutgoing(p) end
+        if not AutoFriends._running then return end
+        if p == Players.LocalPlayer then return end
+        if AutoFriends._requested[p.UserId] then return end
+        task.spawn(function()
+            _sendOutgoingHttp(p.UserId)
+            AutoFriends._requested[p.UserId] = true
+        end)
     end)
+
     task.spawn(function()
         while AutoFriends._running do
-            pcall(_sweepOutgoing)
-            pcall(_acceptIncoming)
+            _sweepOutgoing()
+            if not AutoFriends._running then break end
+            _acceptIncoming()
             task.wait(AutoFriends._backoff)
         end
     end)
 end
 
 function AutoFriends.stop()
+    if not AutoFriends._running then return end
     AutoFriends._running = false
     if AutoFriends._playerAddedConn then
         AutoFriends._playerAddedConn:Disconnect()
         AutoFriends._playerAddedConn = nil
     end
     AutoFriends._requested = {}
+    _log("stopped")
 end
 
 -- ════════════════════════════════════════════════════════════════
