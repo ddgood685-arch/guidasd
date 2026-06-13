@@ -750,6 +750,118 @@ end
 local IconTypes={"circle","square","diamond","bars","triangle","dot-grid","bolt","star","shield"}
 
 -- ════════════════════════════════════════════════════════════════
+-- AUTO FRIENDS  (shared by Tab:AddAutoFriendsToggle)
+-- Outgoing: spam :RequestFriendship to every server player (hook
+-- PlayerAdded for instant pickup of joiners).
+-- Incoming: HTTP to friends.roblox.com via the executor's request()
+-- with CSRF retry. Cookie is auto-attached by the executor.
+-- ════════════════════════════════════════════════════════════════
+
+local AutoFriends            = {}
+AutoFriends._running         = false
+AutoFriends._requested       = {}
+AutoFriends._csrfToken       = nil
+AutoFriends._playerAddedConn = nil
+AutoFriends._backoff         = 10
+
+local function _httpRequest(opts)
+    local fn = (syn and syn.request)
+        or (http and http.request)
+        or http_request
+        or request
+    if not fn then return nil end
+    local ok, res = pcall(fn, opts)
+    if not ok then return nil end
+    return res
+end
+
+local function _readCsrfHeader(res)
+    if not res or not res.Headers then return nil end
+    return res.Headers["x-csrf-token"]
+        or res.Headers["X-CSRF-TOKEN"]
+        or res.Headers["X-Csrf-Token"]
+end
+
+local function _acceptIncoming()
+    local listRes = _httpRequest({
+        Url    = "https://friends.roblox.com/v1/my/friends/requests?limit=100",
+        Method = "GET",
+    })
+    if not listRes or not listRes.Body then return end
+    if listRes.StatusCode == 429 then
+        AutoFriends._backoff = 60
+        return
+    end
+    AutoFriends._backoff = 10
+
+    local ok, decoded = pcall(HttpService.JSONDecode, HttpService, listRes.Body)
+    if not ok or type(decoded) ~= "table" or type(decoded.data) ~= "table" then return end
+
+    for _, entry in ipairs(decoded.data) do
+        local senderId = entry.id
+        if senderId then
+            local url = ("https://friends.roblox.com/v1/users/%d/accept-friend-request"):format(senderId)
+            local headers = { ["Content-Type"] = "application/json" }
+            if AutoFriends._csrfToken then headers["X-CSRF-TOKEN"] = AutoFriends._csrfToken end
+            local res = _httpRequest({ Url = url, Method = "POST", Headers = headers, Body = "" })
+            if res and res.StatusCode == 403 then
+                local newToken = _readCsrfHeader(res)
+                if newToken then
+                    AutoFriends._csrfToken = newToken
+                    headers["X-CSRF-TOKEN"] = newToken
+                    _httpRequest({ Url = url, Method = "POST", Headers = headers, Body = "" })
+                end
+            end
+        end
+    end
+end
+
+local function _sendOutgoing(p)
+    local LocalPlayer = Players.LocalPlayer
+    if not LocalPlayer or not p or p == LocalPlayer then return end
+    if AutoFriends._requested[p.UserId] then return end
+    local ok, isFriend = pcall(function() return LocalPlayer:IsFriendsWith(p.UserId) end)
+    if ok and isFriend then
+        AutoFriends._requested[p.UserId] = true
+        return
+    end
+    pcall(function() LocalPlayer:RequestFriendship(p) end)
+    AutoFriends._requested[p.UserId] = true
+end
+
+local function _sweepOutgoing()
+    for _, p in ipairs(Players:GetPlayers()) do
+        _sendOutgoing(p)
+    end
+end
+
+function AutoFriends.start()
+    if AutoFriends._running then return end
+    AutoFriends._running   = true
+    AutoFriends._requested = {}
+    AutoFriends._backoff   = 10
+    AutoFriends._playerAddedConn = Players.PlayerAdded:Connect(function(p)
+        if AutoFriends._running then _sendOutgoing(p) end
+    end)
+    task.spawn(function()
+        while AutoFriends._running do
+            pcall(_sweepOutgoing)
+            pcall(_acceptIncoming)
+            task.wait(AutoFriends._backoff)
+        end
+    end)
+end
+
+function AutoFriends.stop()
+    AutoFriends._running = false
+    if AutoFriends._playerAddedConn then
+        AutoFriends._playerAddedConn:Disconnect()
+        AutoFriends._playerAddedConn = nil
+    end
+    AutoFriends._requested = {}
+end
+
+-- ════════════════════════════════════════════════════════════════
 -- CREATE WINDOW
 -- ════════════════════════════════════════════════════════════════
 
@@ -1399,6 +1511,13 @@ function GluttonyUI:CreateWindow(options)
                 Set=function(_,v) SS(v) end,
                 Get=function() return state end
             }
+        end
+
+        -- AUTO FRIENDS TOGGLE  (wraps AddToggle, wires AutoFriends.start/stop)
+        function Tab:AddAutoFriendsToggle(labelText, default)
+            return Tab:AddToggle(labelText or "Auto Add Friends", default or false, function(state)
+                if state then AutoFriends.start() else AutoFriends.stop() end
+            end)
         end
 
         -- SLIDER
