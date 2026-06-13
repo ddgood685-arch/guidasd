@@ -820,6 +820,11 @@ local function _acceptIncoming()
         _warn("rate limited (429), backing off 60s"); return
     end
     AutoFriends._backoff = 10
+    if listRes.StatusCode == 401 then
+        _warn("incoming: 401 — executor request() isn't attaching the .ROBLOSECURITY cookie. Incoming accept won't work on this executor; outgoing native still works.")
+        AutoFriends._backoff = 60  -- stop hammering
+        return
+    end
     if not listRes.Body or listRes.StatusCode >= 400 then
         _warn("incoming list bad response status=", listRes.StatusCode); return
     end
@@ -846,16 +851,24 @@ local function _acceptIncoming()
     end
 end
 
-local function _sendOutgoingHttp(userId)
-    local url = ("https://friends.roblox.com/v1/users/%d/request-friendship"):format(userId)
-    local res, perr = _csrfPost(url)
-    if res and res.StatusCode and res.StatusCode < 300 then
-        _log("sent request to", userId)
+-- Native first (no cookie needed), HTTP fallback (needs cookie).
+local function _sendOutgoing(player)
+    local LocalPlayer = Players.LocalPlayer
+    if not LocalPlayer or not player or player == LocalPlayer then return end
+    local nativeOk, nativeErr = pcall(function() LocalPlayer:RequestFriendship(player) end)
+    if nativeOk then
+        _log("sent (native) to", player.UserId, player.Name)
         return true
     end
-    -- 400 with "AlreadyFriends" / "PendingRequest" etc. are expected silent skips
-    if res and res.StatusCode == 400 then return true end
-    _warn("send failed for", userId, "status=", res and res.StatusCode, perr)
+    _warn("native send failed for", player.UserId, nativeErr, "— trying HTTP")
+    local url = ("https://friends.roblox.com/v1/users/%d/request-friendship"):format(player.UserId)
+    local res, perr = _csrfPost(url)
+    if res and res.StatusCode and res.StatusCode < 300 then
+        _log("sent (http) to", player.UserId)
+        return true
+    end
+    if res and res.StatusCode == 400 then return true end  -- already friend / already pending
+    _warn("send failed for", player.UserId, "status=", res and res.StatusCode, perr)
     return false
 end
 
@@ -866,9 +879,9 @@ local function _sweepOutgoing()
     for _, p in ipairs(players) do
         if not AutoFriends._running then return end
         if p ~= LocalPlayer and not AutoFriends._requested[p.UserId] then
-            _sendOutgoingHttp(p.UserId)
+            _sendOutgoing(p)
             AutoFriends._requested[p.UserId] = true
-            task.wait(0.3)  -- yield + space out requests
+            task.wait(0.3)
         end
     end
 end
