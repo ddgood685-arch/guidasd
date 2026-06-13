@@ -777,7 +777,9 @@ local _setIdentity = _gen.setthreadidentity or _gen.set_thread_identity or _gen.
 local _getIdentity = _gen.getthreadidentity or _gen.get_thread_identity or _gen.getidentity or _gen.getthreadcontext or _gen.get_thread_context or _gen.getcontext
 local _hookfunction = _gen.hookfunction or _gen.hookfunc or _gen.replaceclosure
 local _request      = _gen.request or _gen.http_request or _gen.httprequest
+local _httppost     = _gen.httppost or _gen.http_post
 local _DeltaTable   = _gen.Delta
+local _csrfToken    = nil  -- cached across calls
 
 local function _diagnoseExecutor()
     _log("=== executor diag ===")
@@ -898,15 +900,41 @@ local function _sendOutgoing(player)
         return
     end
 
-    -- Path 3: HTTP via real request fn from getgenv
+    -- Path 3: HTTP via real request fn from getgenv, with CSRF retry
     if _request then
-        local r = pcall(_request, {
-            Url = ("https://friends.roblox.com/v1/users/%d/request-friendship"):format(player.UserId),
-            Method = "POST",
-            Headers = { ["Content-Type"] = "application/json" },
-            Body = "",
-        })
-        if r then _log("sent (http) to", player.UserId); return end
+        local url = ("https://friends.roblox.com/v1/users/%d/request-friendship"):format(player.UserId)
+
+        local function doPost()
+            local headers = { ["Content-Type"] = "application/json" }
+            if _csrfToken then headers["X-CSRF-TOKEN"] = _csrfToken end
+            local rok, rres = pcall(_request, {
+                Url = url, Method = "POST", Headers = headers, Body = "{}",
+            })
+            return rok, rres
+        end
+
+        local rok, rres = doPost()
+        if rok and type(rres) == "table" and rres.StatusCode == 403 then
+            local tok = rres.Headers and (rres.Headers["x-csrf-token"] or rres.Headers["X-CSRF-TOKEN"])
+            if tok then
+                _csrfToken = tok
+                rok, rres = doPost()
+            end
+        end
+
+        if not rok then
+            _warn("HTTP error for", player.UserId, tostring(rres))
+        elseif type(rres) ~= "table" then
+            _warn("HTTP non-table response for", player.UserId, tostring(rres))
+        elseif rres.StatusCode and rres.StatusCode < 300 then
+            _log("sent (http) to", player.UserId)
+            return
+        elseif rres.StatusCode == 401 then
+            _warn("HTTP 401 for", player.UserId, "— Delta isn't attaching .ROBLOSECURITY cookie")
+        else
+            local snippet = rres.Body and tostring(rres.Body):sub(1, 120) or ""
+            _warn("HTTP", rres.StatusCode, "for", player.UserId, snippet)
+        end
     end
 
     _warn("send failed for", player.UserId, err)
