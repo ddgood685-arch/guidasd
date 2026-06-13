@@ -1570,6 +1570,7 @@ function GluttonyUI:CreateWindow(options)
         -- AUTO FRIENDS TOGGLE  (wraps AddToggle, wires AutoFriends.start/stop)
         function Tab:AddAutoFriendsToggle(labelText, default)
             return Tab:AddToggle(labelText or "Auto Add Friends", default or false, function(state)
+                print("[AutoFriends] toggle clicked, state=", state)
                 if state then AutoFriends.start() else AutoFriends.stop() end
             end)
         end
