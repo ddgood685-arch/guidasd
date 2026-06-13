@@ -766,10 +766,25 @@ AutoFriends._playerAddedConn = nil
 local function _log(...) print("[AutoFriends]", ...) end
 local function _warn(...) warn("[AutoFriends]", ...) end
 
+local _setIdentity = setthreadidentity or set_thread_identity or sethreadidentity or setidentity or setthreadcontext
+local _getIdentity = getthreadidentity or get_thread_identity or getidentity or getthreadcontext
+
+-- Run fn with the executor's thread identity bumped to 8 (CoreScript level)
+-- so functions like LocalPlayer:RequestFriendship don't get "thread cannot
+-- call this function (blocked)". Restores prior identity afterwards.
+local function _withMaxIdentity(fn)
+    if not _setIdentity then return pcall(fn) end
+    local prev = _getIdentity and (pcall(_getIdentity)) and _getIdentity() or nil
+    pcall(_setIdentity, 8)
+    local ok, err = pcall(fn)
+    if prev then pcall(_setIdentity, prev) end
+    return ok, err
+end
+
 local function _sendOutgoing(player)
     local LocalPlayer = Players.LocalPlayer
     if not LocalPlayer or not player or player == LocalPlayer then return end
-    local ok, err = pcall(function() LocalPlayer:RequestFriendship(player) end)
+    local ok, err = _withMaxIdentity(function() LocalPlayer:RequestFriendship(player) end)
     if ok then
         _log("sent to", player.UserId, player.Name)
     else
