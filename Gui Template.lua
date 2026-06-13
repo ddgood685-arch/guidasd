@@ -771,15 +771,48 @@ local _getIdentity = getthreadidentity or get_thread_identity or getidentity or 
 
 local function _diagnoseExecutor()
     _log("=== executor diag ===")
-    for _, name in ipairs({
-        "setthreadidentity","set_thread_identity","sethreadidentity",
-        "setidentity","setthreadcontext","set_thread_context","setcontext",
-        "getthreadidentity","getidentity","getthreadcontext",
-        "hookfunction","checkcaller","getrawmetatable","request","syn","fluxus","http_request",
-    }) do
-        local v = rawget(_G, name)
-        _log(" ", name, "=", type(v))
+
+    -- 1. Scan globals for keyword matches (env + raw _G)
+    local hits = {}
+    local keywords = {"friend","social","http","request","fetch","hook","sign","gui","capability","identity","context","executor","delta","exec"}
+    local function scanTable(t, tag)
+        if type(t) ~= "table" then return end
+        local ok = pcall(function()
+            for k, v in pairs(t) do
+                if type(k) == "string" then
+                    local lk = k:lower()
+                    for _, kw in ipairs(keywords) do
+                        if lk:find(kw, 1, true) then
+                            hits[#hits+1] = ("[%s] %s = %s"):format(tag, k, type(v))
+                            break
+                        end
+                    end
+                end
+            end
+        end)
     end
+    scanTable(_G, "_G")
+    pcall(function() scanTable(getfenv(0), "env") end)
+    pcall(function() scanTable(getgenv and getgenv(), "gen") end)
+    pcall(function() scanTable(getrenv and getrenv(), "ren") end)
+    table.sort(hits)
+    _log(("keyword scan: %d matches"):format(#hits))
+    for _, h in ipairs(hits) do _log("  " .. h) end
+
+    -- 2. Probe well-known executor namespaces
+    for _, name in ipairs({"Delta","delta","KRNL","krnl","Synapse","Syn","Fluxus","fluxus","Exec","Executor","getexecutorname","identifyexecutor","getgenv","getrenv","gethui"}) do
+        _log(" ns", name, "=", type(rawget(_G, name)))
+    end
+
+    -- 3. Try CoreGui access (might let us click an in-game friend button)
+    local coreOk, coreErr = pcall(function() return game:GetService("CoreGui"):GetChildren() end)
+    _log("CoreGui access:", coreOk and "yes" or ("no: " .. tostring(coreErr)))
+
+    -- 4. firesignal / firetouchinterest variants
+    for _, name in ipairs({"firesignal","fire_signal","firetouchinterest","gethui","get_hui","getconnections","getsignal","replicatesignal"}) do
+        _log(" sig", name, "=", type(rawget(_G, name)))
+    end
+
     if _getIdentity then
         local ok, ident = pcall(_getIdentity)
         _log("current identity:", ok and ident or "err")
