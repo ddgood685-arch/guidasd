@@ -2227,9 +2227,27 @@ function GluttonyUI:CreateWindow(options)
             lbl.Font=Theme.FontLight; lbl.TextXAlignment=Enum.TextXAlignment.Left
             lbl.ZIndex=11; lbl.Parent=row
 
-            -- If opts.Width is set, the button widens to match the panel so the
-            -- two visually align (otherwise a wide panel atop a narrow button looks odd).
-            local ddW=opts.Width or RS(180,160)
+            -- Width precedence: explicit opts.Width, else opts.AutoWidth (size the
+            -- button + panel to the widest option name/hint), else the default.
+            -- opts.Width keeps button and panel aligned for a wide fixed panel.
+            local function MeasureAutoWidth()
+                local ok,w=pcall(function()
+                    local TS=game:GetService("TextService")
+                    local big=Vector2.new(10000,10000)
+                    local mx=0
+                    for _,item in ipairs(normalized) do
+                        local nW=TS:GetTextSize(tostring(item.Name or ""),RS(13,14),Theme.Font,big).X
+                        local hW=(item.Hint and item.Hint~="") and TS:GetTextSize(tostring(item.Hint),RS(10,11),Theme.FontLight,big).X or 0
+                        if nW>mx then mx=nW end
+                        if hW>mx then mx=hW end
+                    end
+                    return mx
+                end)
+                if not ok or type(w)~="number" then return RS(180,160) end
+                -- + checkbox/label inset and arrow/padding
+                return math.clamp(math.ceil(w)+RS(60,56),RS(120,110),RS(360,320))
+            end
+            local ddW=opts.Width or (opts.AutoWidth and MeasureAutoWidth()) or RS(180,160)
             local ddBtn=Instance.new("Frame"); ddBtn.Size=UDim2.new(0,ddW,0,RS(30,34))
             ddBtn.Position=UDim2.new(1,-(ddW+RS(16,12)),0.5,-RS(15,17))
             ddBtn.BackgroundColor3=Theme.InputBg; ddBtn.BorderSizePixel=0
