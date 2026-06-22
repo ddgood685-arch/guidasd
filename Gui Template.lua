@@ -786,8 +786,12 @@ function GluttonyUI:CreateWindow(options)
     _screenSize = workspace.CurrentCamera.ViewportSize
     _isMobile   = UserInputService.TouchEnabled and not UserInputService.KeyboardEnabled
 
-    local WW = RS(620, math.floor(math.min(_screenSize.X * 0.97, 460)))
-    local WH = RS(480, math.floor(math.min(_screenSize.Y * 0.88, 580)))
+    -- Single FIXED landscape base for every device (like BARF) — no mobile aspect-ratio flip.
+    -- The UIScale (added below) just shrinks this proven 620x480 design to fit smaller screens.
+    local WW = 620
+    local WH = 480
+    -- Uniform responsive scale: a UIScale (set up after the window is built, below) shrinks the
+    -- base design to fit the viewport. Shrink-only (never grows past 1.0), never distorts.
     local SW = RS(150, 110)
     local TH = RS(42, 50)
     local RH = RS(48, 52)
@@ -801,14 +805,38 @@ function GluttonyUI:CreateWindow(options)
     -- MAIN FRAME
     local main=Instance.new("Frame"); main.Name="Main"
     main.Size=UDim2.new(0,WW,0,WH)
-    if _isMobile then
-        main.Position = UDim2.new(0, math.floor((_screenSize.X - WW) / 2), 0, math.floor((_screenSize.Y - WH) / 2))
-    else
-        main.Position = UDim2.new(0.5, -WW/2, 0.5, -WH/2)
-    end
+    main.AnchorPoint=Vector2.new(0.5,0.5)
+    main.Position=UDim2.new(0.5,0,0.5,0) -- centered; UIScale handles per-screen fit
     main.BackgroundColor3=Theme.Background; main.BorderSizePixel=0
     main.ClipsDescendants=true; main.Parent=screenGui
     Corner(main,Theme.CornerLarge); Stroke(main,Theme.Border,1.5,0.3)
+
+    -- Responsive uniform scaling (ported from BARF): scales the whole window (and all descendants)
+    -- to fit the screen. Shrink-only; re-fits early because the viewport is often unknown on the
+    -- first frame under gethui/CoreGui, and again on every resize/rotate.
+    local uiScale=Instance.new("UIScale"); uiScale.Scale=1; uiScale.Parent=main
+    local function viewportSize()
+        local vp=screenGui.AbsoluteSize
+        if vp.X<2 or vp.Y<2 then
+            local ok,cv=pcall(function() return workspace.CurrentCamera.ViewportSize end)
+            if ok and cv and cv.X>2 then vp=cv end
+        end
+        return vp
+    end
+    local function fitWindow()
+        local vp=viewportSize()
+        if vp.X<2 or vp.Y<2 then return end
+        -- Leave a visible margin so the whole window sits inside the screen (phones tighter).
+        local mx=_isMobile and 0.94 or 0.96
+        local my=_isMobile and 0.92 or 0.94
+        uiScale.Scale=math.min(1,(vp.X*mx)/WW,(vp.Y*my)/WH)
+    end
+    fitWindow()
+    task.defer(fitWindow)
+    task.spawn(function()
+        for _=1,8 do task.wait(0.25); fitWindow() end
+    end)
+    AddConnection(screenGui:GetPropertyChangedSignal("AbsoluteSize"):Connect(fitWindow))
 
     local shadow=Instance.new("ImageLabel"); shadow.AnchorPoint=Vector2.new(0.5,0.5)
     shadow.BackgroundTransparency=1; shadow.Position=UDim2.new(0.5,0,0.5,0)
@@ -922,26 +950,47 @@ function GluttonyUI:CreateWindow(options)
         end
     end))
 
-    -- DRAG (PC only)
-    if not _isMobile then
-        local dragging=false; local dragStartInput=nil; local startPos=nil
-        AddConnection(titleBar.InputBegan:Connect(function(input)
-            if input.UserInputType~=Enum.UserInputType.MouseButton1 then return end
+    -- DRAG (PC mouse + mobile touch) — grab the title bar OR either bottom corner, so the
+    -- window can always be moved even if the title bar gets pushed off the top edge.
+    do
+        local function isDragStart(it)
+            return it==Enum.UserInputType.MouseButton1 or it==Enum.UserInputType.Touch
+        end
+        local function isDragMove(it)
+            return it==Enum.UserInputType.MouseMovement or it==Enum.UserInputType.Touch
+        end
+        local dragging=false; local dragStartInput=nil; local startCenter=nil
+        local function beginDrag(input)
+            if not isDragStart(input.UserInputType) then return end
             dragging=true; dragStartInput=Vector2.new(input.Position.X,input.Position.Y)
-            local absPos=main.AbsolutePosition
-            startPos=UDim2.new(0,absPos.X,0,absPos.Y)
-        end))
+            local c=main.AbsolutePosition+main.AbsoluteSize/2 -- center (AnchorPoint 0.5)
+            startCenter=Vector2.new(c.X,c.Y)
+        end
+        AddConnection(titleBar.InputBegan:Connect(beginDrag))
+        -- Bottom-corner grab handles (the top edge is already the draggable title bar).
+        -- Small transparent zones that start the same drag, so a corner is always reachable.
+        local GRIP=RS(30,38)
+        for _,ap in ipairs({Vector2.new(0,1), Vector2.new(1,1)}) do -- bottom-left, bottom-right
+            local grip=Instance.new("Frame"); grip.Name="DragGrip"
+            grip.Size=UDim2.new(0,GRIP,0,GRIP)
+            grip.AnchorPoint=ap; grip.Position=UDim2.new(ap.X,0,ap.Y,0)
+            grip.BackgroundTransparency=1; grip.BorderSizePixel=0
+            grip.ZIndex=60; grip.Active=true; grip.Parent=main
+            AddConnection(grip.InputBegan:Connect(beginDrag))
+        end
         AddConnection(UserInputService.InputChanged:Connect(function(input)
-            if not dragging or not dragStartInput or not startPos then return end
-            if input.UserInputType~=Enum.UserInputType.MouseMovement then return end
-            local current=Vector2.new(input.Position.X,input.Position.Y)
-            local d=current-dragStartInput
-            main.Position=UDim2.new(startPos.X.Scale,startPos.X.Offset+d.X,
-                startPos.Y.Scale,startPos.Y.Offset+d.Y)
+            if not dragging or not dragStartInput or not startCenter then return end
+            if not isDragMove(input.UserInputType) then return end
+            local d=Vector2.new(input.Position.X,input.Position.Y)-dragStartInput
+            -- Clamp the window center to the viewport so a grab surface is always on-screen.
+            local vp=workspace.CurrentCamera.ViewportSize
+            local nx=math.clamp(startCenter.X+d.X,0,vp.X)
+            local ny=math.clamp(startCenter.Y+d.Y,0,vp.Y)
+            main.Position=UDim2.new(0,nx,0,ny)
         end))
         AddConnection(UserInputService.InputEnded:Connect(function(input)
-            if input.UserInputType~=Enum.UserInputType.MouseButton1 then return end
-            dragging=false; dragStartInput=nil; startPos=nil
+            if not isDragStart(input.UserInputType) then return end
+            dragging=false; dragStartInput=nil; startCenter=nil
         end))
     end
 
@@ -1130,7 +1179,7 @@ function GluttonyUI:CreateWindow(options)
         ulg.Parent=ul
 
         AddConnection(pageLayout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
-            page.CanvasSize=UDim2.new(0,0,0,pageLayout.AbsoluteContentSize.Y+40)
+            page.CanvasSize=UDim2.new(0,0,0,pageLayout.AbsoluteContentSize.Y/uiScale.Scale+40)
         end))
 
         Window._pages[name]=page
@@ -2059,7 +2108,7 @@ function GluttonyUI:CreateWindow(options)
                         if callback then task.spawn(callback,opt) end
                     end))
                 end
-                panel.CanvasSize=UDim2.new(0,0,0,pl.AbsoluteContentSize.Y+10)
+                panel.CanvasSize=UDim2.new(0,0,0,pl.AbsoluteContentSize.Y/uiScale.Scale+10)
                 currentTH=math.min(#options*RS(32,36)+10, maxPanelH)
                 return currentTH
             end
@@ -2906,7 +2955,7 @@ function GluttonyUI:CreateWindow(options)
                         end
 
                         ddTargetH=math.min(#ddOpts*RS(28,32)+10,RS(180,160))
-                        ddPanel.CanvasSize=UDim2.new(0,0,0,ddPanelLayout.AbsoluteContentSize.Y+10)
+                        ddPanel.CanvasSize=UDim2.new(0,0,0,ddPanelLayout.AbsoluteContentSize.Y/uiScale.Scale+10)
                         ddPanel.Position=GetDDPosition(ddTargetH)
                         ddPanel.Size=UDim2.new(0,ddPanelWidth,0,0)
                         ddPanel.Visible=true
@@ -3017,9 +3066,9 @@ function GluttonyUI:CreateWindow(options)
             end))
 
             AddConnection(sfl:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
-                sf.CanvasSize=UDim2.new(0,0,0,sfl.AbsoluteContentSize.Y+16)
+                sf.CanvasSize=UDim2.new(0,0,0,sfl.AbsoluteContentSize.Y/uiScale.Scale+16)
             end))
-            sf.CanvasSize=UDim2.new(0,0,0,sfl.AbsoluteContentSize.Y+16)
+            sf.CanvasSize=UDim2.new(0,0,0,sfl.AbsoluteContentSize.Y/uiScale.Scale+16)
 
             -- ════════════════════════════════════════════════════════
             -- MOBILE SCROLL PASSTHROUGH FIX
@@ -3035,7 +3084,7 @@ function GluttonyUI:CreateWindow(options)
                     touchStartY = input.Position.Y
                     touchStartCanvasY = sf.CanvasPosition.Y
 
-                    local maxScroll = math.max(0, sf.CanvasSize.Y.Offset - sf.AbsoluteSize.Y)
+                    local maxScroll = math.max(0, sf.CanvasSize.Y.Offset - sf.AbsoluteSize.Y/uiScale.Scale)
                     local atTop    = touchStartCanvasY <= 1
                     local atBottom = touchStartCanvasY >= (maxScroll - 1)
 
@@ -3052,7 +3101,7 @@ function GluttonyUI:CreateWindow(options)
                     if input.UserInputType ~= Enum.UserInputType.Touch then return end
 
                     local dy = input.Position.Y - touchStartY
-                    local maxScroll = math.max(0, sf.CanvasSize.Y.Offset - sf.AbsoluteSize.Y)
+                    local maxScroll = math.max(0, sf.CanvasSize.Y.Offset - sf.AbsoluteSize.Y/uiScale.Scale)
                     local atTop    = sf.CanvasPosition.Y <= 1
                     local atBottom = sf.CanvasPosition.Y >= (maxScroll - 1)
 
@@ -3436,7 +3485,7 @@ function GluttonyUI:CreateWindow(options)
 
         local spl=ListLayout(sp,RS(8,10))
         AddConnection(spl:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
-            sp.CanvasSize=UDim2.new(0,0,0,spl.AbsoluteContentSize.Y+40)
+            sp.CanvasSize=UDim2.new(0,0,0,spl.AbsoluteContentSize.Y/uiScale.Scale+40)
         end))
         Window._pages["Settings"]=sp
 
